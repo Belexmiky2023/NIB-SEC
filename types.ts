@@ -23,6 +23,7 @@ export interface Chat {
   unreadCount: number;
   membersCount?: number;
   avatar: string;
+  isPinned?: boolean;
 }
 
 export type AppState = 'LOGIN' | 'LOADING' | 'SETUP' | 'MAIN' | 'CALLING';
