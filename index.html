@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NIB Sec – Secure Communication</title>
 
-  <!-- Tailwind CDN (no build required) -->
+  <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Font Awesome -->
@@ -29,6 +30,8 @@
       background-color: #000;
       color: #fff;
       overflow: hidden;
+      height: 100vh;
+      width: 100vw;
     }
 
     /* Honeycomb background */
@@ -56,57 +59,45 @@
       box-shadow: 0 0 20px rgba(250, 204, 21, 0.5);
     }
 
+    .hexagon {
+      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    }
+
     /* Scrollbar */
     ::-webkit-scrollbar {
       width: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
     }
     ::-webkit-scrollbar-thumb {
       background: #facc15;
       border-radius: 10px;
     }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.95); }
+    }
   </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/"
+  }
+}
+</script>
 </head>
 
-<body class="honeycomb-bg flex items-center justify-center min-h-screen">
-
-  <!-- Main Container -->
-  <main class="text-center px-6">
-    <!-- Bee Icon -->
-    <div class="bee-float mb-6">
-      <i class="fa-solid fa-bug text-yellow-400 text-6xl glow-yellow"></i>
-    </div>
-
-    <!-- Title -->
-    <h1 class="text-4xl md:text-5xl font-bold mb-4">
-      NIB <span class="text-yellow-400">Sec</span>
-    </h1>
-
-    <!-- Subtitle -->
-    <p class="text-gray-400 max-w-md mx-auto mb-8">
-      Secure, fast, and private communication inspired by the power of the bee.
-    </p>
-
-    <!-- Buttons -->
-    <div class="flex flex-col sm:flex-row gap-4 justify-center">
-      <button
-        class="bg-yellow-400 text-black px-6 py-3 rounded-lg font-semibold hover:bg-yellow-300 transition"
-      >
-        Get Started
-      </button>
-
-      <button
-        class="border border-yellow-400 px-6 py-3 rounded-lg text-yellow-400 hover:bg-yellow-400 hover:text-black transition"
-      >
-        Learn More
-      </button>
-    </div>
-
-    <!-- Footer -->
-    <footer class="mt-12 text-xs text-gray-500">
-      © 2025 NIB Sec. All rights reserved.
-    </footer>
-  </main>
-
+<body class="honeycomb-bg">
+  <!-- React Mount Point -->
+  <div id="root" class="h-full w-full"></div>
+  
+  <!-- The application entry point -->
+  <script type="module" src="./index.tsx"></script>
 </body>
-<!-- made by oryn -->
 </html>
