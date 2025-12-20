@@ -1,76 +1,112 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NIB Sec - Secure Communication</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NIB Sec – Secure Communication</title>
+
+  <!-- Tailwind CDN (no build required) -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Font Awesome -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+  />
+
+  <!-- Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
-    
     body {
       margin: 0;
-      font-family: 'Space+Grotesk', sans-serif;
+      font-family: "Space Grotesk", sans-serif;
       background-color: #000;
       color: #fff;
       overflow: hidden;
     }
 
+    /* Honeycomb background */
     .honeycomb-bg {
       background-color: #000;
-      background-image: 
+      background-image:
         radial-gradient(circle at center, rgba(250, 204, 21, 0.05) 0%, transparent 70%),
         linear-gradient(30deg, #0a0a0a 12%, transparent 12.5%, transparent 87%, #0a0a0a 87.5%, #0a0a0a),
         linear-gradient(150deg, #0a0a0a 12%, transparent 12.5%, transparent 87%, #0a0a0a 87.5%, #0a0a0a),
-        linear-gradient(30deg, #0a0a0a 12%, transparent 12.5%, transparent 87%, #0a0a0a 87.5%, #0a0a0a),
-        linear-gradient(150deg, #0a0a0a 12%, transparent 12.5%, transparent 87%, #0a0a0a 87.5%, #0a0a0a),
-        linear-gradient(60deg, #111 25%, transparent 25.5%, transparent 75%, #111 75.5%, #111),
         linear-gradient(60deg, #111 25%, transparent 25.5%, transparent 75%, #111 75.5%, #111);
       background-size: 80px 140px;
     }
 
+    /* Bee animation */
     .bee-float {
       animation: float 3s ease-in-out infinite;
     }
 
     @keyframes float {
-      0%, 100% { transform: translateY(0) rotate(0); }
-      50% { transform: translateY(-20px) rotate(5deg); }
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-20px); }
     }
 
     .glow-yellow {
-      box-shadow: 0 0 15px rgba(250, 204, 21, 0.4);
+      box-shadow: 0 0 20px rgba(250, 204, 21, 0.5);
     }
 
-    .hexagon {
-      clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
-    }
-
-    /* Custom scrollbar */
+    /* Scrollbar */
     ::-webkit-scrollbar {
       width: 4px;
-    }
-    ::-webkit-scrollbar-track {
-      background: transparent;
     }
     ::-webkit-scrollbar-thumb {
       background: #facc15;
       border-radius: 10px;
     }
   </style>
-<script type="importmap">
-{
-  "imports": {
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
-  }
-}
-</script>
 </head>
-<body class="honeycomb-bg">
-  <div id="root"></div>
+
+<body class="honeycomb-bg flex items-center justify-center min-h-screen">
+
+  <!-- Main Container -->
+  <main class="text-center px-6">
+    <!-- Bee Icon -->
+    <div class="bee-float mb-6">
+      <i class="fa-solid fa-bug text-yellow-400 text-6xl glow-yellow"></i>
+    </div>
+
+    <!-- Title -->
+    <h1 class="text-4xl md:text-5xl font-bold mb-4">
+      NIB <span class="text-yellow-400">Sec</span>
+    </h1>
+
+    <!-- Subtitle -->
+    <p class="text-gray-400 max-w-md mx-auto mb-8">
+      Secure, fast, and private communication inspired by the power of the bee.
+    </p>
+
+    <!-- Buttons -->
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+      <button
+        class="bg-yellow-400 text-black px-6 py-3 rounded-lg font-semibold hover:bg-yellow-300 transition"
+      >
+        Get Started
+      </button>
+
+      <button
+        class="border border-yellow-400 px-6 py-3 rounded-lg text-yellow-400 hover:bg-yellow-400 hover:text-black transition"
+      >
+        Learn More
+      </button>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-12 text-xs text-gray-500">
+      © 2025 NIB Sec. All rights reserved.
+    </footer>
+  </main>
+
 </body>
+<!-- made by oryn -->
 </html>
