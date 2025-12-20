@@ -1,0 +1,8 @@
+{
+  "name": "NIB Sec Platform",
+  "description": "A secure, bee-themed messaging and calling platform inspired by Telegram, featuring advanced cybersecurity aesthetics and GitHub authentication.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
