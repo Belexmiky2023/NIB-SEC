@@ -14,16 +14,27 @@ interface MainViewProps {
 const initialMockChats: Chat[] = [
   { id: 'nib_official', name: 'NIB SEC', type: 'channel', avatar: 'https://i.ibb.co/3ykXF4K/nib-logo.png', unreadCount: 1, membersCount: 25800, lastMessage: 'Hive node v2.5 operational.', isPinned: true, isVerified: true },
   { id: 'saved', name: 'Saved Messages', type: 'saved', avatar: 'https://cdn-icons-png.flaticon.com/512/566/566412.png', unreadCount: 0, lastMessage: 'Cloud signal stored.', isPinned: true },
-  { id: '2', name: 'Alpha Swarm', type: 'group', avatar: 'https://picsum.photos/105', unreadCount: 2, membersCount: 12, lastMessage: 'Signal verified.' },
-  { id: '3', name: '@queen_bee', type: 'direct', avatar: 'https://picsum.photos/103', unreadCount: 0, lastMessage: 'Handshake complete.' },
+  { id: 'alpha_swarm', name: 'Alpha Swarm', type: 'group', avatar: 'https://picsum.photos/105', unreadCount: 0, membersCount: 12, lastMessage: 'Signal verified.' },
 ];
 
 const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignOut, theme, toggleTheme }) => {
-  const [chats, setChats] = useState<Chat[]>(initialMockChats);
+  const [chats, setChats] = useState<Chat[]>(() => {
+    const saved = localStorage.getItem('nib_chats');
+    return saved ? JSON.parse(saved) : initialMockChats;
+  });
   const [activeChatId, setActiveChatId] = useState<string | null>('nib_official');
   const [messageInput, setMessageInput] = useState('');
   const [isTransmitting, setIsTransmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   
+  // Per-chat message history
+  const [chatMessages, setChatMessages] = useState<Record<string, Message[]>>(() => {
+    const saved = localStorage.getItem('nib_message_history');
+    return saved ? JSON.parse(saved) : {
+      'nib_official': [{ id: 'm1', senderId: 'nib_official', text: 'Welcome to NIB SEC HQ. Your connection is strictly isolated.', timestamp: Date.now() - 3600000 }]
+    };
+  });
+
   // Side Menu & Overlays
   const [showHamburger, setShowHamburger] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -34,44 +45,101 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
   const [walletStep, setWalletStep] = useState<'balance' | 'buy' | 'telebirr' | 'waiting'>('balance');
   const [buyQuantity, setBuyQuantity] = useState('50');
 
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 'm1', senderId: 'nib_official', text: 'Welcome to NIB SEC HQ. Your connection is strictly isolated.', timestamp: Date.now() - 3600000 },
-  ]);
-
   const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  // Persistence
+  useEffect(() => {
+    localStorage.setItem('nib_chats', JSON.stringify(chats));
+    localStorage.setItem('nib_message_history', JSON.stringify(chatMessages));
+  }, [chats, chatMessages]);
 
   useEffect(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTo({ top: chatScrollRef.current.scrollHeight, behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [chatMessages, activeChatId]);
 
-  // Simulate an incoming call after some time
+  // Call Notification Simulation
   useEffect(() => {
     const timer = setTimeout(() => {
       setIncomingCall(true);
-      // Play sound
       try { new Audio('https://assets.mixkit.co/sfx/preview/mixkit-modern-classic-doorbell-sound-120.mp3').play(); } catch(e){}
-    }, 15000);
+    }, 45000);
     return () => clearTimeout(timer);
   }, []);
 
   const handleSendMessage = () => {
-    if (!messageInput.trim() || isTransmitting) return;
+    if (!messageInput.trim() || isTransmitting || !activeChatId) return;
     setIsTransmitting(true);
-    const newMessage: Message = { id: 'm-' + Date.now(), senderId: 'user', text: messageInput.trim(), timestamp: Date.now() };
-    setMessages(prev => [...prev, newMessage]);
+    
+    const newMessage: Message = { 
+      id: 'm-' + Date.now(), 
+      senderId: 'user', 
+      text: messageInput.trim(), 
+      timestamp: Date.now() 
+    };
+
+    setChatMessages(prev => ({
+      ...prev,
+      [activeChatId]: [...(prev[activeChatId] || []), newMessage]
+    }));
+
+    // Update last message in chat list
+    setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, lastMessage: messageInput.trim() } : c));
+    
     setMessageInput('');
     setTimeout(() => setIsTransmitting(false), 300);
+
+    // Simulate reply for non-official channels
+    if (activeChatId !== 'nib_official' && activeChatId !== 'saved') {
+      setTimeout(() => {
+        const reply: Message = {
+          id: 'r-' + Date.now(),
+          senderId: activeChatId,
+          text: `Signal received. Executing protocol for ${activeChatId}...`,
+          timestamp: Date.now()
+        };
+        setChatMessages(prev => ({
+          ...prev,
+          [activeChatId]: [...(prev[activeChatId] || []), reply]
+        }));
+      }, 1500);
+    }
   };
 
   const handlePinToggle = (chatId: string) => {
     setChats(prev => prev.map(c => c.id === chatId ? { ...c, isPinned: !c.isPinned } : c));
   };
 
+  const startNewChat = (targetUsername: string) => {
+    const cleanUsername = targetUsername.startsWith('@') ? targetUsername : `@${targetUsername}`;
+    const existing = chats.find(c => c.id === cleanUsername);
+    
+    if (existing) {
+      setActiveChatId(existing.id);
+    } else {
+      const newChat: Chat = {
+        id: cleanUsername,
+        name: cleanUsername,
+        type: 'direct',
+        avatar: `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${cleanUsername}`,
+        unreadCount: 0,
+        lastMessage: 'Encryption tunnel initialized.'
+      };
+      setChats(prev => [newChat, ...prev]);
+      setActiveChatId(newChat.id);
+    }
+    setSearchTerm('');
+  };
+
   const activeChat = chats.find(c => c.id === activeChatId);
-  const pinnedChats = chats.filter(c => c.isPinned).sort((a, b) => 0); 
-  const unpinnedChats = chats.filter(c => !c.isPinned);
+  const currentMessages = activeChatId ? (chatMessages[activeChatId] || []) : [];
+  
+  // Filter search
+  const filteredChats = chats.filter(c => 
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    c.id.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const renderChatItem = (chat: Chat) => (
     <div 
@@ -84,7 +152,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
     >
       <div className="relative shrink-0">
         <div className={`w-14 h-14 hexagon p-0.5 ${chat.isPinned ? 'bg-yellow-400' : 'bg-neutral-800'}`}>
-          <img src={chat.avatar} className="w-full h-full hexagon object-cover" />
+          <img src={chat.avatar} className="w-full h-full hexagon object-cover" alt={chat.name} />
         </div>
         {chat.unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-black">
@@ -114,7 +182,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
           <div className="bg-neutral-900 border-2 border-yellow-400 p-6 rounded-[2.5rem] shadow-[0_20px_60px_rgba(250,204,21,0.3)] flex items-center justify-between honey-glow">
              <div className="flex items-center space-x-4">
                 <div className="w-14 h-14 hexagon bg-yellow-400 p-1">
-                   <img src="https://picsum.photos/101" className="w-full h-full hexagon object-cover" />
+                   <img src="https://picsum.photos/101" className="w-full h-full hexagon object-cover" alt="caller" />
                 </div>
                 <div>
                    <h4 className="text-sm font-black uppercase italic text-yellow-400">Incoming Call</h4>
@@ -136,7 +204,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
           <div className="w-80 h-full bg-[#050505] border-r border-yellow-400/20 relative z-10 animate-in slide-in-from-left duration-300 flex flex-col">
              <div className="p-10 bg-gradient-to-br from-yellow-400/10 to-transparent border-b border-white/5">
                 <div className="w-20 h-20 hexagon p-1 bg-yellow-400 shadow-2xl mb-6">
-                   <img src={user.avatarUrl} className="w-full h-full hexagon object-cover" />
+                   <img src={user.avatarUrl} className="w-full h-full hexagon object-cover" alt="me" />
                 </div>
                 <h3 className="text-xl font-black uppercase italic tracking-tighter text-white">{user.displayName}</h3>
                 <p className="text-[10px] text-yellow-400/60 font-mono uppercase tracking-widest">{user.username}</p>
@@ -296,19 +364,49 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
            <h1 className="hidden lg:block text-2xl font-black text-yellow-400 uppercase tracking-tighter italic">NIB SEC</h1>
         </div>
 
+        {/* Search Header */}
+        <div className="px-6 py-4 border-b border-white/5">
+           <div className="relative group">
+              <i className="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-yellow-400 transition-colors"></i>
+              <input 
+                type="text" 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Find Operative..."
+                className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 outline-none focus:border-yellow-400/40 text-xs font-black uppercase tracking-widest text-white transition-all"
+              />
+           </div>
+        </div>
+
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-8 custom-scrollbar">
-           {pinnedChats.length > 0 && (
+           {searchTerm && !chats.some(c => c.id.toLowerCase().includes(searchTerm.toLowerCase())) && searchTerm.startsWith('@') && (
+              <div className="space-y-3">
+                 <h4 className="px-6 text-[10px] text-gray-700 font-black uppercase tracking-[0.4em]">New Node Found</h4>
+                 <button 
+                  onClick={() => startNewChat(searchTerm)}
+                  className="w-full flex items-center space-x-4 p-4 rounded-[2.5rem] bg-yellow-400/5 border border-dashed border-yellow-400/30 hover:border-yellow-400 transition-all"
+                 >
+                    <div className="w-12 h-12 hexagon bg-yellow-400 flex items-center justify-center text-black font-black">?</div>
+                    <div className="flex-1 text-left">
+                       <p className="text-sm font-black text-yellow-400 uppercase">Initialize {searchTerm}</p>
+                       <p className="text-[9px] text-gray-600 font-black uppercase">Create Secure Tunnel</p>
+                    </div>
+                 </button>
+              </div>
+           )}
+
+           {chats.some(c => c.isPinned) && (
               <div className="space-y-3">
                  <h4 className="px-6 text-[10px] text-gray-700 font-black uppercase tracking-[0.4em]">Pinned</h4>
                  <div className="space-y-2">
-                    {pinnedChats.map(renderChatItem)}
+                    {filteredChats.filter(c => c.isPinned).map(renderChatItem)}
                  </div>
               </div>
            )}
            <div className="space-y-3">
               <h4 className="px-6 text-[10px] text-gray-700 font-black uppercase tracking-[0.4em]">Messages</h4>
               <div className="space-y-2">
-                 {unpinnedChats.map(renderChatItem)}
+                 {filteredChats.filter(c => !c.isPinned).map(renderChatItem)}
               </div>
            </div>
         </div>
@@ -316,107 +414,124 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
 
       {/* MAIN CHAT AREA */}
       <div className="flex-1 flex flex-col relative bg-black/30 backdrop-blur-3xl">
-        <div className="h-28 border-b border-white/5 bg-black/60 backdrop-blur-3xl px-12 flex items-center justify-between z-10 shrink-0 shadow-2xl">
-          <div className="flex items-center space-x-6">
-            <div className="w-16 h-16 hexagon p-0.5 bg-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.2)]">
-              <img src={activeChat?.avatar} className="w-full h-full hexagon object-cover" />
-            </div>
-            <div>
-              <div className="font-black text-2xl lg:text-3xl tracking-tighter flex items-center uppercase text-white">
-                {activeChat?.name}
-                {activeChat?.isVerified && (
-                   <i className="fa-solid fa-circle-check text-yellow-400 text-sm ml-3 verified-glow"></i>
-                )}
-              </div>
-              <div className="flex items-center space-x-2">
-                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                 <p className="text-[11px] text-gray-500 uppercase tracking-[0.3em] font-black">Node Verified</p>
-                 {activeChat?.type === 'channel' && <span className="text-[10px] text-yellow-400/40 font-black uppercase tracking-widest ml-4">{activeChat.membersCount?.toLocaleString()} Subscribers</span>}
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-4">
-             <div className="relative">
-                <button onClick={() => setShowProfileDropdown(!showProfileDropdown)} className="flex items-center space-x-2 bg-white/5 px-4 py-3 rounded-2xl border border-white/10 hover:border-yellow-400/40 transition-all group">
-                   <div className="w-8 h-8 rounded-full overflow-hidden border border-yellow-400/50">
-                      <img src={user.avatarUrl} className="w-full h-full object-cover" />
-                   </div>
-                   <i className="fa-solid fa-chevron-down text-[10px] text-gray-500 group-hover:text-yellow-400"></i>
-                </button>
-                {showProfileDropdown && (
-                   <div className="absolute top-full right-0 mt-4 w-72 bg-neutral-900 border border-yellow-400/20 rounded-[2.5rem] p-6 shadow-[0_30px_80px_rgba(0,0,0,0.9)] z-50 animate-in zoom-in duration-200">
-                      <div className="text-center space-y-6">
-                         <div className="w-24 h-24 hexagon bg-yellow-400/10 rounded-full flex items-center justify-center mx-auto border border-yellow-400/20">
-                            <i className="fa-solid fa-bee text-yellow-400 text-4xl animate-bounce"></i>
-                         </div>
-                         <div className="space-y-1">
-                            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-red-500">Under Maintenance</h4>
-                            <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest">Extended Hive Update</p>
-                         </div>
-                         <div className="h-px bg-white/5"></div>
-                         <button className="w-full py-4 hover:bg-yellow-400/10 rounded-2xl text-left px-4 flex items-center space-x-4 transition-all group">
-                            <i className="fa-solid fa-user-plus text-gray-600 group-hover:text-yellow-400"></i>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-white">Add Account</span>
-                         </button>
-                         <button onClick={onSignOut} className="w-full py-4 hover:bg-red-500/10 rounded-2xl text-left px-4 flex items-center space-x-4 transition-all group text-gray-500 hover:text-red-500">
-                            <i className="fa-solid fa-power-off"></i>
-                            <span className="text-[10px] font-black uppercase tracking-widest">Sign Out</span>
-                         </button>
-                      </div>
-                   </div>
-                )}
-             </div>
-             <button onClick={onStartCall} className="w-16 h-16 rounded-[2.5rem] bg-yellow-400 text-black hover:bg-white transition-all flex items-center justify-center shadow-[0_15px_40px_rgba(250,204,21,0.3)]"><i className="fa-solid fa-phone text-2xl"></i></button>
-          </div>
-        </div>
-
-        <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-12 space-y-12 custom-scrollbar relative">
-           {messages.map(msg => (
-             <div key={msg.id} className={`flex ${msg.senderId === 'user' ? 'justify-end' : 'justify-start'}`}>
-               <div className={`max-w-[70%] space-y-3 animate-msg`}>
-                 <div className={`p-8 rounded-[3.5rem] text-[16px] leading-relaxed relative transition-all shadow-2xl ${
-                   msg.senderId === 'user' 
-                   ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black font-black' 
-                   : 'bg-[#0a0a0a] border border-white/5 text-gray-100 shadow-[inset_0_0_20px_rgba(250,204,21,0.05)]'
-                 }`}>
-                    {msg.text}
-                 </div>
-                 <div className={`text-[10px] px-8 text-gray-700 font-black uppercase tracking-widest ${msg.senderId === 'user' ? 'text-right' : 'text-left'}`}>
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' })}
-                 </div>
-               </div>
-             </div>
-           ))}
-        </div>
-
-        <div className="p-10 border-t bg-black/80 border-white/5 shrink-0">
-          <div className="flex flex-col space-y-4 max-w-7xl mx-auto">
-             <div className="flex items-center space-x-6">
-                <button className="w-16 h-16 flex items-center justify-center bg-white/5 rounded-3xl hover:text-yellow-400 border border-white/5 hover:border-yellow-400/40 transition-all shrink-0 group"><i className="fa-solid fa-face-smile text-2xl group-hover:scale-110"></i></button>
-                <div className="flex-1 relative">
-                   <input 
-                    type="text" 
-                    value={messageInput} 
-                    onChange={(e) => setMessageInput(e.target.value)} 
-                    onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                    disabled={isTransmitting}
-                    placeholder="TRANSMIT ENCRYPTED SIGNAL..." 
-                    className="w-full bg-black/50 border border-white/10 rounded-[3rem] py-6 px-12 outline-none focus:border-yellow-400/50 transition-all font-black uppercase tracking-[0.2em] text-sm shadow-inner text-white placeholder:text-gray-900" 
-                  />
+        {activeChatId ? (
+          <>
+            <div className="h-28 border-b border-white/5 bg-black/60 backdrop-blur-3xl px-12 flex items-center justify-between z-10 shrink-0 shadow-2xl">
+              <div className="flex items-center space-x-6">
+                <div className="w-16 h-16 hexagon p-0.5 bg-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.2)]">
+                  <img src={activeChat?.avatar} className="w-full h-full hexagon object-cover" alt="active-chat" />
                 </div>
-                <button 
-                  onClick={handleSendMessage}
-                  disabled={!messageInput.trim() || isTransmitting}
-                  className={`w-20 h-20 flex items-center justify-center rounded-[3rem] transition-all shadow-2xl active:scale-95 relative overflow-hidden ${
-                    messageInput.trim() ? 'bg-yellow-400 text-black shadow-[0_0_30px_rgba(250,204,21,0.5)]' : 'bg-white/5 text-gray-800'
-                  }`}
-                >
-                  <i className="fa-solid fa-paper-plane text-3xl"></i>
-                </button>
-             </div>
+                <div>
+                  <div className="font-black text-2xl lg:text-3xl tracking-tighter flex items-center uppercase text-white">
+                    {activeChat?.name}
+                    {activeChat?.isVerified && (
+                      <i className="fa-solid fa-circle-check text-yellow-400 text-sm ml-3 verified-glow"></i>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    <p className="text-[11px] text-gray-500 uppercase tracking-[0.3em] font-black">Node Verified</p>
+                    {activeChat?.type === 'channel' && <span className="text-[10px] text-yellow-400/40 font-black uppercase tracking-widest ml-4">{activeChat.membersCount?.toLocaleString()} Subscribers</span>}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-4">
+                <div className="relative">
+                    <button onClick={() => setShowProfileDropdown(!showProfileDropdown)} className="flex items-center space-x-2 bg-white/5 px-4 py-3 rounded-2xl border border-white/10 hover:border-yellow-400/40 transition-all group">
+                      <div className="w-8 h-8 rounded-full overflow-hidden border border-yellow-400/50">
+                          <img src={user.avatarUrl} className="w-full h-full object-cover" alt="user" />
+                      </div>
+                      <i className="fa-solid fa-chevron-down text-[10px] text-gray-500 group-hover:text-yellow-400"></i>
+                    </button>
+                    {showProfileDropdown && (
+                      <div className="absolute top-full right-0 mt-4 w-72 bg-neutral-900 border border-yellow-400/20 rounded-[2.5rem] p-6 shadow-[0_30px_80px_rgba(0,0,0,0.9)] z-50 animate-in zoom-in duration-200">
+                          <div className="text-center space-y-6">
+                            <div className="w-24 h-24 hexagon bg-yellow-400/10 rounded-full flex items-center justify-center mx-auto border border-yellow-400/20">
+                                <i className="fa-solid fa-bee text-yellow-400 text-4xl animate-bounce"></i>
+                            </div>
+                            <div className="space-y-1">
+                                <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-red-500">Under Maintenance</h4>
+                                <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest">Extended Hive Update</p>
+                            </div>
+                            <div className="h-px bg-white/5"></div>
+                            <button className="w-full py-4 hover:bg-yellow-400/10 rounded-2xl text-left px-4 flex items-center space-x-4 transition-all group">
+                                <i className="fa-solid fa-user-plus text-gray-600 group-hover:text-yellow-400"></i>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-white">Add Account</span>
+                            </button>
+                            <button onClick={onSignOut} className="w-full py-4 hover:bg-red-500/10 rounded-2xl text-left px-4 flex items-center space-x-4 transition-all group text-gray-500 hover:text-red-500">
+                                <i className="fa-solid fa-power-off"></i>
+                                <span className="text-[10px] font-black uppercase tracking-widest">Sign Out</span>
+                            </button>
+                          </div>
+                      </div>
+                    )}
+                </div>
+                {activeChat?.type !== 'channel' && (
+                  <button onClick={onStartCall} className="w-16 h-16 rounded-[2.5rem] bg-yellow-400 text-black hover:bg-white transition-all flex items-center justify-center shadow-[0_15px_40px_rgba(250,204,21,0.3)]"><i className="fa-solid fa-phone text-2xl"></i></button>
+                )}
+              </div>
+            </div>
+
+            <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-12 space-y-12 custom-scrollbar relative">
+              {currentMessages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center opacity-20">
+                   <i className="fa-solid fa-shield-halved text-9xl mb-6"></i>
+                   <p className="text-xl font-black uppercase tracking-[0.4em]">Tunnel Initialized</p>
+                </div>
+              ) : currentMessages.map(msg => (
+                <div key={msg.id} className={`flex ${msg.senderId === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[70%] space-y-3 animate-msg`}>
+                    <div className={`p-8 rounded-[3.5rem] text-[16px] leading-relaxed relative transition-all shadow-2xl ${
+                      msg.senderId === 'user' 
+                      ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black font-black' 
+                      : 'bg-[#0a0a0a] border border-white/5 text-gray-100 shadow-[inset_0_0_20px_rgba(250,204,21,0.05)]'
+                    }`}>
+                        {msg.text}
+                    </div>
+                    <div className={`text-[10px] px-8 text-gray-700 font-black uppercase tracking-widest ${msg.senderId === 'user' ? 'text-right' : 'text-left'}`}>
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-10 border-t bg-black/80 border-white/5 shrink-0">
+              <div className="flex flex-col space-y-4 max-w-7xl mx-auto">
+                <div className="flex items-center space-x-6">
+                    <button className="w-16 h-16 flex items-center justify-center bg-white/5 rounded-3xl hover:text-yellow-400 border border-white/5 hover:border-yellow-400/40 transition-all shrink-0 group"><i className="fa-solid fa-face-smile text-2xl group-hover:scale-110"></i></button>
+                    <div className="flex-1 relative">
+                      <input 
+                        type="text" 
+                        value={messageInput} 
+                        onChange={(e) => setMessageInput(e.target.value)} 
+                        onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+                        disabled={isTransmitting}
+                        placeholder="TRANSMIT ENCRYPTED SIGNAL..." 
+                        className="w-full bg-black/50 border border-white/10 rounded-[3rem] py-6 px-12 outline-none focus:border-yellow-400/50 transition-all font-black uppercase tracking-[0.2em] text-sm shadow-inner text-white placeholder:text-gray-900" 
+                      />
+                    </div>
+                    <button 
+                      onClick={handleSendMessage}
+                      disabled={!messageInput.trim() || isTransmitting}
+                      className={`w-20 h-20 flex items-center justify-center rounded-[3rem] transition-all shadow-2xl active:scale-95 relative overflow-hidden ${
+                        messageInput.trim() ? 'bg-yellow-400 text-black shadow-[0_0_30px_rgba(250,204,21,0.5)]' : 'bg-white/5 text-gray-800'
+                      }`}
+                    >
+                      <i className="fa-solid fa-paper-plane text-3xl"></i>
+                    </button>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-12 space-y-6">
+             <i className="fa-solid fa-bee text-9xl text-yellow-400/10 animate-pulse"></i>
+             <h2 className="text-4xl font-black italic uppercase tracking-tighter text-yellow-400/20">Select Node</h2>
+             <p className="text-xs font-black uppercase tracking-[0.5em] text-gray-800">Secure Signal Tunnel Awaiting Input</p>
           </div>
-        </div>
+        )}
       </div>
       
       <footer className="fixed bottom-4 left-1/2 -translate-x-1/2 text-[10px] font-mono text-gray-800 uppercase tracking-widest pointer-events-none z-0">
