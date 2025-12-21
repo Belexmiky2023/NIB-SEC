@@ -11,6 +11,7 @@ export interface User {
   isBanned?: boolean;
   isVerified?: boolean;
   loginMethod?: 'github' | 'phone' | 'google';
+  registrationDate?: number;
 }
 
 export interface PaymentRequest {
