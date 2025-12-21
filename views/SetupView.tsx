@@ -17,7 +17,7 @@ const SetupView: React.FC<SetupViewProps> = ({ initialData, onComplete }) => {
 
   const reservedUsernames = [
     '@nibsec', '@nibsecoffical', '@nibsecurity', 
-    '@oryn', '@oryn179', '@179oryn'
+    '@oryn', '@oryn179', '@179oryn', '@nibbee', '@nib_01'
   ];
 
   useEffect(() => {
@@ -32,10 +32,10 @@ const SetupView: React.FC<SetupViewProps> = ({ initialData, onComplete }) => {
           setSuggestions([]);
         } else if (/^\d+$/.test(namePart)) {
           setError('User name can not be number');
-          setSuggestions([`@nib_${namePart}`, `@bee_${namePart}`, `@operative_${namePart}`]);
+          setSuggestions([`@nib_${namePart}`, `@bee_${namePart}`, `@nib_operative_${namePart}`]);
         } else if (reservedUsernames.includes(cleanUsername)) {
-          setError('Username is already exist');
-          setSuggestions([`@${namePart}_sec`, `@the_${namePart}`, `@v_${namePart}`]);
+          setError('Already Existed.');
+          setSuggestions([`@${namePart}_sec`, `@nib_${namePart}_node`, `@the_${namePart}`]);
         } else if (namePart.length < 3) {
           setError('Username is too short');
           setSuggestions([]);
@@ -44,7 +44,7 @@ const SetupView: React.FC<SetupViewProps> = ({ initialData, onComplete }) => {
           setSuggestions([]);
         }
         setIsChecking(false);
-      }, 400);
+      }, 500);
       return () => clearTimeout(timer);
     }
   }, [username]);
@@ -61,11 +61,14 @@ const SetupView: React.FC<SetupViewProps> = ({ initialData, onComplete }) => {
   const isValid = username.length > 3 && username.startsWith('@') && displayName.trim().length > 1 && !error && !isChecking;
 
   return (
-    <div className="h-full flex items-center justify-center p-6 bg-black/40 backdrop-blur-xl">
-      <div className="max-w-md w-full bg-[#0a0a0a] border border-yellow-400/20 rounded-[48px] p-10 space-y-8 relative overflow-hidden shadow-[0_0_100px_rgba(250,204,21,0.1)]">
+    <div className="h-full flex items-center justify-center p-6 bg-black/40 backdrop-blur-3xl relative">
+      <div className="max-w-md w-full bg-[#0a0a0a] border border-yellow-400/20 rounded-[48px] p-10 space-y-8 relative overflow-hidden shadow-[0_0_150px_rgba(250,204,21,0.1)]">
+        <div className="absolute top-0 left-0 w-full h-1 bg-yellow-400/20"></div>
+        
         <div className="text-center space-y-2">
-          <h2 className="text-4xl font-black text-yellow-400 uppercase tracking-tighter italic">Identity Setup</h2>
-          <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest">Establish your encrypted handle</p>
+           <i className="fa-solid fa-bee text-yellow-400 text-5xl mb-4 drop-shadow-[0_0_15px_rgba(250,204,21,0.4)]"></i>
+          <h2 className="text-4xl font-black text-yellow-400 uppercase tracking-tighter italic leading-none">Identity Setup</h2>
+          <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest">Establish your encrypted operative handle</p>
         </div>
 
         <div className="flex flex-col items-center space-y-4">
@@ -88,7 +91,7 @@ const SetupView: React.FC<SetupViewProps> = ({ initialData, onComplete }) => {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="e.g. John Doe"
-              className="w-full bg-black border border-white/10 rounded-[2rem] py-4 px-8 outline-none focus:border-yellow-400/50 transition-all font-bold text-white placeholder:text-gray-800"
+              className="w-full bg-black border border-white/10 rounded-[2rem] py-4 px-8 outline-none focus:border-yellow-400 transition-all font-bold text-white placeholder:text-gray-800"
             />
           </div>
 
@@ -142,6 +145,7 @@ const SetupView: React.FC<SetupViewProps> = ({ initialData, onComplete }) => {
           </button>
         </div>
       </div>
+      <footer className="absolute bottom-10 text-[9px] font-mono text-gray-600 uppercase tracking-widest">© 2025 NIB SEC • SECURED TUNNEL ACTIVE</footer>
     </div>
   );
 };
