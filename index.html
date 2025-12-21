@@ -5,118 +5,97 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NIB Sec – Secure Communication</title>
-
-  <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Font Awesome -->
-  <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-  />
-
-  <!-- Google Font -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
-    rel="stylesheet"
-  />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet" />
 
   <style>
+    :root {
+      --nib-yellow: #facc15;
+      --nib-yellow-glow: rgba(250, 204, 21, 0.4);
+      --nib-bg: #000000;
+    }
+
     body {
       margin: 0;
       font-family: "Space Grotesk", sans-serif;
-      background-color: #000;
+      background-color: var(--nib-bg);
       color: #fff;
       overflow: hidden;
       height: 100vh;
       width: 100vw;
     }
 
+    .font-mono { font-family: 'Fira Code', monospace; }
+
+    /* Scanline Effect */
+    body::before {
+      content: " ";
+      display: block;
+      position: absolute;
+      top: 0; left: 0; bottom: 0; right: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+      z-index: 1000;
+      background-size: 100% 2px, 3px 100%;
+      pointer-events: none;
+    }
+
     .honeycomb-bg {
-      background-color: #000;
-      background-image:
-        radial-gradient(circle at 50% 50%, rgba(250, 204, 21, 0.05) 0%, transparent 80%),
-        linear-gradient(30deg, #050505 12%, transparent 12.5%, transparent 87%, #050505 87.5%, #050505),
-        linear-gradient(150deg, #050505 12%, transparent 12.5%, transparent 87%, #050505 87.5%, #050505),
-        linear-gradient(60deg, #0a0a0a 25%, transparent 25.5%, transparent 75%, #0a0a0a 75.5%, #0a0a0a);
-      background-size: 60px 104px;
+      background-image: 
+        radial-gradient(circle at 50% 50%, rgba(250, 204, 21, 0.03) 0%, transparent 80%),
+        url("data:image/svg+xml,%3Csvg width='52' height='30' viewBox='0 0 52 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23facc15' fill-opacity='0.03'%3E%3Cpath d='M10 0l16 9v11L10 29l-16-9V9z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
     }
 
     .hexagon {
       clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
     }
 
-    /* Honey Glow Popups */
     .honey-glow {
-      box-shadow: 0 0 50px rgba(250, 204, 21, 0.2);
-      border: 1px solid rgba(250, 204, 21, 0.3);
+      box-shadow: 0 0 40px var(--nib-yellow-glow);
+      border: 1px solid rgba(250, 204, 21, 0.2);
     }
 
     .text-glow {
-      text-shadow: 0 0 10px rgba(250, 204, 21, 0.8);
-    }
-
-    /* Bee Flight Path */
-    .bee-flight {
-      animation: bee-random 20s infinite linear;
-    }
-
-    @keyframes bee-random {
-      0% { transform: translate(0, 0) rotate(0deg); }
-      25% { transform: translate(100vw, -20vh) rotate(45deg); }
-      50% { transform: translate(20vw, 80vh) rotate(180deg); }
-      75% { transform: translate(-50vw, 30vh) rotate(270deg); }
-      100% { transform: translate(0, 0) rotate(360deg); }
-    }
-
-    /* Floating Bee with Honey Bar */
-    .bee-with-bar {
-      animation: drift-bee 12s infinite ease-in-out;
-      filter: drop-shadow(0 0 15px rgba(250, 204, 21, 0.4));
+      text-shadow: 0 0 12px var(--nib-yellow-glow);
     }
 
     @keyframes drift-bee {
       0%, 100% { transform: translate(0, 0) rotate(5deg); }
-      25% { transform: translate(20px, -30px) rotate(-5deg); }
-      50% { transform: translate(-20px, 10px) rotate(3deg); }
-      75% { transform: translate(10px, -15px) rotate(-3deg); }
+      25% { transform: translate(15px, -20px) rotate(-5deg); }
+      50% { transform: translate(-15px, 15px) rotate(3deg); }
+      75% { transform: translate(8px, -12px) rotate(-3deg); }
     }
+    .bee-with-bar { animation: drift-bee 10s infinite ease-in-out; }
 
-    /* Message Send Animation */
     @keyframes message-up {
-      0% { opacity: 0; transform: translateY(10px) scale(0.98); }
+      0% { opacity: 0; transform: translateY(15px) scale(0.95); }
       100% { opacity: 1; transform: translateY(0) scale(1); }
     }
-    .animate-msg {
-      animation: message-up 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    .animate-msg { animation: message-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: var(--nib-yellow); border-radius: 10px; }
+
+    .glass {
+      background: rgba(10, 10, 10, 0.7);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
     }
 
-    /* Scrollbar */
-    ::-webkit-scrollbar { width: 3px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #facc15; border-radius: 10px; }
-
-    .custom-scrollbar::-webkit-scrollbar { width: 3px; }
-
-    /* Verified Badge Glow */
-    .verified-glow {
-      filter: drop-shadow(0 0 5px rgba(250, 204, 21, 1));
+    /* Pulse for live indicators */
+    @keyframes pulse-ring {
+      0% { transform: scale(.33); opacity: 1; }
+      80%, 100% { opacity: 0; }
     }
-
-    /* Hive Pulse Animation */
-    @keyframes hive-pulse {
-      0% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.4); }
-      70% { box-shadow: 0 0 0 20px rgba(250, 204, 21, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
-    }
-    .pulse-yellow {
-      animation: hive-pulse 2s infinite;
-    }
-    
-    .login-card-shadow {
-       box-shadow: 0 30px 100px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.05);
+    .pulse-ring::before {
+      content: '';
+      position: absolute;
+      width: 300%; height: 300%;
+      background-color: var(--nib-yellow);
+      border-radius: 50%;
+      animation: pulse-ring 1.5s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
     }
   </style>
 <script type="importmap">

@@ -1,27 +1,74 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+
+interface Country {
+  name: string;
+  code: string;
+  flag: string;
+  iso: string;
+}
+
+const countries: Country[] = [
+  { name: 'Ethiopia', code: '+251', flag: '🇪🇹', iso: 'ET' },
+  { name: 'USA', code: '+1', flag: '🇺🇸', iso: 'US' },
+  { name: 'UK', code: '+44', flag: '🇬🇧', iso: 'GB' },
+  { name: 'Germany', code: '+49', flag: '🇩🇪', iso: 'DE' },
+  { name: 'France', code: '+33', flag: '🇫🇷', iso: 'FR' },
+  { name: 'UAE', code: '+971', flag: '🇦🇪', iso: 'AE' },
+  { name: 'Canada', code: '+1', flag: '🇨🇦', iso: 'CA' },
+  { name: 'Australia', code: '+61', flag: '🇦🇺', iso: 'AU' },
+  { name: 'India', code: '+91', flag: '🇮🇳', iso: 'IN' },
+  { name: 'Nigeria', code: '+234', flag: '🇳🇬', iso: 'NG' },
+  { name: 'Kenya', code: '+254', flag: '🇰🇪', iso: 'KE' },
+  { name: 'South Africa', code: '+27', flag: '🇿🇦', iso: 'ZA' },
+  { name: 'Brazil', code: '+55', flag: '🇧🇷', iso: 'BR' },
+  { name: 'Japan', code: '+81', flag: '🇯🇵', iso: 'JP' },
+  { name: 'China', code: '+86', flag: '🇨🇳', iso: 'CN' },
+  { name: 'Russia', code: '+7', flag: '🇷🇺', iso: 'RU' },
+  { name: 'Italy', code: '+39', flag: '🇮🇹', iso: 'IT' },
+  { name: 'Spain', code: '+34', flag: '🇪🇸', iso: 'ES' },
+  { name: 'Netherlands', code: '+31', flag: '🇳🇱', iso: 'NL' },
+  { name: 'Sweden', code: '+46', flag: '🇸🇪', iso: 'SE' },
+  { name: 'Norway', code: '+47', flag: '🇳🇴', iso: 'NO' },
+  { name: 'Turkey', code: '+90', flag: '🇹🇷', iso: 'TR' },
+  { name: 'Saudi Arabia', code: '+966', flag: '🇸🇦', iso: 'SA' },
+  { name: 'Egypt', code: '+20', flag: '🇪🇬', iso: 'EG' },
+  { name: 'Mexico', code: '+52', flag: '🇲🇽', iso: 'MX' },
+  { name: 'Argentina', code: '+54', flag: '🇦🇷', iso: 'AR' },
+];
+
+const ADMIN_SECRET = "https://nib-sec.pages.dev/";
 
 interface LoginViewProps {
   onLogin: (method: 'github' | 'phone' | 'google', value?: string) => void;
   theme: string;
 }
 
-const countries = [
-  { name: 'Ethiopia', code: '+251', flag: '🇪🇹' },
-  { name: 'USA', code: '+1', flag: '🇺🇸' },
-  { name: 'UK', code: '+44', flag: '🇬🇧' },
-  { name: 'Germany', code: '+49', flag: '🇩🇪' },
-  { name: 'France', code: '+33', flag: '🇫🇷' },
-  { name: 'UAE', code: '+971', flag: '🇦🇪' },
-];
-
-const ADMIN_SECRET = "https://nib-sec.pages.dev/";
-
 const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [selectedCountry, setSelectedCountry] = useState(countries[0]);
+  const [selectedCountry, setSelectedCountry] = useState<Country>(countries[0]);
   const [showCountryDropdown, setShowCountryDropdown] = useState(false);
   const [isComingSoon, setIsComingSoon] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // IP-based Country Detection
+  useEffect(() => {
+    const detectCountry = async () => {
+      try {
+        const response = await fetch('https://ipapi.co/json/');
+        const data = await response.json();
+        if (data && data.country_code) {
+          const detected = countries.find(c => c.iso === data.country_code);
+          if (detected) {
+            setSelectedCountry(detected);
+          }
+        }
+      } catch (error) {
+        console.warn('IP detection failed, using default country');
+      }
+    };
+    detectCountry();
+  }, []);
 
   useEffect(() => {
     if (isComingSoon) {
@@ -29,6 +76,13 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
       return () => clearTimeout(timer);
     }
   }, [isComingSoon]);
+
+  const filteredCountries = useMemo(() => {
+    return countries.filter(c => 
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      c.code.includes(searchQuery)
+    );
+  }, [searchQuery]);
 
   const handleContinue = () => {
     if (phoneNumber === ADMIN_SECRET) {
@@ -108,7 +162,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 <div className="relative">
                   <button 
                     onClick={() => setShowCountryDropdown(!showCountryDropdown)}
-                    className="flex items-center space-x-2 px-4 py-3 bg-white/5 rounded-2xl hover:bg-white/10 transition-all border border-transparent active:scale-95"
+                    className="flex items-center space-x-2 px-4 py-3 bg-white/5 rounded-2xl hover:bg-white/10 transition-all border border-transparent active:scale-95 min-w-[100px]"
                   >
                     <span className="text-xl">{selectedCountry.flag}</span>
                     <span className="text-gray-400 font-bold">{selectedCountry.code}</span>
@@ -116,17 +170,37 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   </button>
                   
                   {showCountryDropdown && (
-                    <div className="absolute top-full left-0 mt-2 w-48 bg-[#181818] border border-white/10 rounded-2xl shadow-2xl z-[100] overflow-hidden">
-                      {countries.map(c => (
-                        <button 
-                          key={c.code}
-                          onClick={() => { setSelectedCountry(c); setShowCountryDropdown(false); }}
-                          className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-yellow-400/10 hover:text-yellow-400 transition-all text-left"
-                        >
-                          <span className="text-xl">{c.flag}</span>
-                          <span className="text-xs font-bold text-gray-400">{c.name}</span>
-                        </button>
-                      ))}
+                    <div className="absolute top-full left-0 mt-2 w-72 bg-[#181818] border border-white/10 rounded-2xl shadow-2xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="p-2 border-b border-white/5">
+                        <input 
+                          type="text"
+                          placeholder="Search country..."
+                          autoFocus
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full bg-black/40 border border-white/5 rounded-xl py-2 px-3 text-xs outline-none text-white focus:border-yellow-400/40"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                      <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                        {filteredCountries.length > 0 ? (
+                          filteredCountries.map(c => (
+                            <button 
+                              key={`${c.iso}-${c.code}`}
+                              onClick={() => { setSelectedCountry(c); setShowCountryDropdown(false); setSearchQuery(''); }}
+                              className="w-full flex items-center justify-between px-4 py-3 hover:bg-yellow-400/10 hover:text-yellow-400 transition-all text-left"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <span className="text-xl">{c.flag}</span>
+                                <span className="text-xs font-bold text-gray-400">{c.name}</span>
+                              </div>
+                              <span className="text-[10px] font-mono text-gray-600">{c.code}</span>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-4 py-6 text-center text-gray-600 text-[10px] uppercase font-black">No matches found</div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
