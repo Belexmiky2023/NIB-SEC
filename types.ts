@@ -2,9 +2,11 @@
 export interface User {
   id: string;
   username: string;
+  phone?: string;
   email?: string;
   avatarUrl: string;
   isProfileComplete: boolean;
+  walletBalance?: string;
 }
 
 export interface Message {
@@ -18,7 +20,7 @@ export interface Message {
 export interface Chat {
   id: string;
   name: string;
-  type: 'direct' | 'group' | 'channel';
+  type: 'direct' | 'group' | 'channel' | 'saved';
   lastMessage?: string;
   unreadCount: number;
   membersCount?: number;
@@ -27,3 +29,4 @@ export interface Chat {
 }
 
 export type AppState = 'LOGIN' | 'LOADING' | 'SETUP' | 'MAIN' | 'CALLING';
+export type Theme = 'night' | 'light';
