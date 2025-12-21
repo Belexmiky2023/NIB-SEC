@@ -9,53 +9,65 @@ import CallingView from './views/CallingView';
 import AdminView from './views/AdminView';
 
 const GITHUB_CLIENT_ID = "Ov23liHIbFs3qWTJ0bez";
+const GOOGLE_CLIENT_ID = "1027735078146-l610f2vn1cnm4o791d4795m07fdq9gd2.apps.googleusercontent.com";
 const ADMIN_SECRET = "https://nibsec.netlify.app/";
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [appState, setAppState] = useState<AppState>('LOGIN');
   const [theme, setTheme] = useState<Theme>('night');
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Persistence logic
+  // Persistence logic - Load from "Database" (LocalStorage)
   useEffect(() => {
-    const savedUser = localStorage.getItem('nib_sec_user');
-    const savedState = localStorage.getItem('nib_sec_state');
-    const savedTheme = localStorage.getItem('nib_sec_theme');
+    const savedUser = localStorage.getItem('nib_sec_user_data');
+    const savedState = localStorage.getItem('nib_sec_app_state');
+    const savedTheme = localStorage.getItem('nib_sec_theme_pref');
 
     if (savedTheme) setTheme(savedTheme as Theme);
     
-    if (savedUser && savedState && savedState !== 'LOADING') {
-      setUser(JSON.parse(savedUser));
-      setAppState(savedState as AppState);
-    }
-
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    if (code) handleOAuthSuccess();
-  }, []);
-
-  useEffect(() => {
-    if (appState !== 'LOADING') {
-      localStorage.setItem('nib_sec_state', appState);
-      localStorage.setItem('nib_sec_theme', theme);
-      if (user) {
-        localStorage.setItem('nib_sec_user', JSON.stringify(user));
+    if (savedUser && savedState) {
+      const parsedUser = JSON.parse(savedUser);
+      if (savedState === 'MAIN' || savedState === 'ADMIN' || savedState === 'SETUP') {
+        setUser(parsedUser);
+        setAppState(savedState as AppState);
       }
     }
-  }, [appState, user, theme]);
+    
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (code) handleOAuthSuccess('github');
 
-  const handleOAuthSuccess = () => {
+    setIsInitialized(true);
+  }, []);
+
+  // Save to "Database" (LocalStorage)
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    if (appState !== 'LOADING') {
+      localStorage.setItem('nib_sec_app_state', appState);
+      localStorage.setItem('nib_sec_theme_pref', theme);
+      if (user) {
+        localStorage.setItem('nib_sec_user_data', JSON.stringify(user));
+      } else {
+        localStorage.removeItem('nib_sec_user_data');
+      }
+    }
+  }, [appState, user, theme, isInitialized]);
+
+  const handleOAuthSuccess = (method: 'github' | 'google', externalData?: any) => {
     setAppState('LOADING');
     setTimeout(() => {
       const mockUser: User = {
-        id: 'gh-' + Math.random().toString(36).substr(2, 9),
-        username: '@gh_user',
-        displayName: 'GitHub Operative',
-        email: 'dev@github.com',
-        avatarUrl: 'https://picsum.photos/200',
+        id: (method === 'github' ? 'gh-' : 'go-') + Math.random().toString(36).substr(2, 9),
+        username: method === 'github' ? '@gh_user' : '@google_operative',
+        displayName: method === 'github' ? 'GitHub Operative' : 'Google Operative',
+        email: externalData?.email || (method === 'github' ? 'dev@github.com' : 'user@gmail.com'),
+        avatarUrl: externalData?.picture || 'https://picsum.photos/200',
         isProfileComplete: false,
         walletBalance: '0.00',
-        loginMethod: 'github'
+        loginMethod: method
       };
       setUser(mockUser);
       setAppState('SETUP');
@@ -63,15 +75,22 @@ const App: React.FC = () => {
     }, 3000);
   };
 
-  const handleLogin = (method: 'github' | 'phone', phoneValue?: string) => {
+  const handleLogin = (method: 'github' | 'phone' | 'google', val?: string) => {
     if (method === 'github') {
       const redirectUri = window.location.origin + window.location.pathname;
       const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email`;
       window.location.href = githubAuthUrl;
+    } else if (method === 'google') {
+      // Logic for Google login is triggered in LoginView via GSI, but we can also handle a manual redirect pattern here if needed
+      setAppState('LOADING');
+      // For this prototype, we simulate a successful redirect-based response
+      setTimeout(() => {
+        handleOAuthSuccess('google');
+      }, 1500);
     } else {
       setAppState('LOADING');
       setTimeout(() => {
-        if (phoneValue === ADMIN_SECRET) {
+        if (val === ADMIN_SECRET) {
           setAppState('ADMIN');
           return;
         }
@@ -79,7 +98,7 @@ const App: React.FC = () => {
           id: 'u-' + Math.random().toString(36).substr(2, 9),
           username: '',
           displayName: '',
-          phone: phoneValue,
+          phone: val,
           avatarUrl: 'https://picsum.photos/200',
           isProfileComplete: false,
           walletBalance: '0.00',
@@ -101,13 +120,15 @@ const App: React.FC = () => {
   };
 
   const handleSignOut = () => {
-    localStorage.removeItem('nib_sec_user');
-    localStorage.removeItem('nib_sec_state');
+    localStorage.clear();
     setUser(null);
     setAppState('LOGIN');
+    window.location.reload(); 
   };
 
   const toggleTheme = () => setTheme(prev => prev === 'night' ? 'light' : 'night');
+
+  if (!isInitialized) return <LoadingView />;
 
   return (
     <div className={`h-screen w-screen overflow-hidden transition-colors duration-300 ${theme === 'night' ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>

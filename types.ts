@@ -10,7 +10,7 @@ export interface User {
   walletBalance: string;
   isBanned?: boolean;
   isVerified?: boolean;
-  loginMethod?: 'github' | 'phone';
+  loginMethod?: 'github' | 'phone' | 'google';
 }
 
 export interface PaymentRequest {

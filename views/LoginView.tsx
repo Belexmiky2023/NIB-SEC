@@ -1,9 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Theme } from '../types';
 
 interface LoginViewProps {
-  onLogin: (method: 'github' | 'phone', value?: string) => void;
+  onLogin: (method: 'github' | 'phone' | 'google', value?: string) => void;
   theme: Theme;
 }
 
@@ -13,15 +13,27 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, theme }) => {
 
   const handlePhoneContinue = () => {
     const adminSecret = "https://nibsec.netlify.app/";
-    
     if (phoneNumber === adminSecret) {
       onLogin('phone', adminSecret);
       return;
     }
-
     setShowHoldMsg(true);
     setTimeout(() => setShowHoldMsg(false), 3000);
   };
+
+  // Optional: Handle Google ID Token callback if using GSI One Tap or a standard button
+  /*
+  useEffect(() => {
+    if (window.google) {
+      window.google.accounts.id.initialize({
+        client_id: "1027735078146-l610f2vn1cnm4o791d4795m07fdq9gd2.apps.googleusercontent.com",
+        callback: (response: any) => {
+          onLogin('google', response.credential);
+        }
+      });
+    }
+  }, []);
+  */
 
   return (
     <div className="h-full flex flex-col lg:flex-row items-center justify-center p-8 lg:p-24 relative overflow-hidden">
@@ -74,13 +86,13 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, theme }) => {
             <i className="fa-solid fa-shield text-[120px] text-yellow-400"></i>
           </div>
 
-          <div className="space-y-14 relative z-10">
+          <div className="space-y-10 relative z-10">
             <div className="space-y-3">
               <h2 className="text-5xl font-bold">Login</h2>
               <p className="text-sm text-gray-600 font-bold uppercase tracking-[0.4em]">IDENTIFY YOUR NODE</p>
             </div>
 
-            <div className="space-y-8">
+            <div className="space-y-6">
               <div className="space-y-4">
                 <label className="text-[11px] uppercase font-bold text-gray-600 tracking-[0.3em] ml-2">SECURE PHONE NUMBER</label>
                 <div className="relative">
@@ -104,25 +116,35 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, theme }) => {
                   {!showHoldMsg && <i className="fa-solid fa-chevron-right text-xs ml-4 group-hover:translate-x-2 transition-transform"></i>}
                 </button>
                 {showHoldMsg && (
-                  <div className="absolute -bottom-10 left-0 w-full text-center">
-                    <p className="text-yellow-400 text-[10px] font-bold uppercase tracking-widest animate-pulse">Phone login on hold. Use GitHub for now.</p>
+                  <div className="absolute -bottom-8 left-0 w-full text-center">
+                    <p className="text-yellow-400 text-[10px] font-bold uppercase tracking-widest animate-pulse">Phone login on hold. Use Auth Link for now.</p>
                   </div>
                 )}
               </div>
 
-              <div className="relative py-6 flex items-center">
+              <div className="relative py-4 flex items-center">
                 <div className="flex-1 border-t border-white/5"></div>
                 <span className="px-6 text-[10px] text-gray-700 uppercase tracking-[0.5em] font-black">OR SECURE LINK</span>
                 <div className="flex-1 border-t border-white/5"></div>
               </div>
 
-              <button 
-                onClick={() => onLogin('github')}
-                className="w-full bg-black border border-white/10 hover:border-yellow-400/40 py-6 rounded-3xl flex items-center justify-center space-x-6 transition-all group shadow-lg"
-              >
-                <i className="fa-brands fa-github text-2xl group-hover:scale-110 transition-transform"></i>
-                <span className="text-sm font-black uppercase tracking-[0.2em]">Authorize with GitHub</span>
-              </button>
+              <div className="grid grid-cols-1 gap-4">
+                <button 
+                  onClick={() => onLogin('github')}
+                  className="w-full bg-black border border-white/10 hover:border-yellow-400/40 py-5 rounded-3xl flex items-center justify-center space-x-6 transition-all group shadow-lg"
+                >
+                  <i className="fa-brands fa-github text-2xl group-hover:scale-110 transition-transform"></i>
+                  <span className="text-sm font-black uppercase tracking-[0.2em]">Authorize with GitHub</span>
+                </button>
+
+                <button 
+                  onClick={() => onLogin('google')}
+                  className="w-full bg-black border border-white/10 hover:border-yellow-400/40 py-5 rounded-3xl flex items-center justify-center space-x-6 transition-all group shadow-lg"
+                >
+                  <i className="fa-brands fa-google text-2xl group-hover:scale-110 transition-transform"></i>
+                  <span className="text-sm font-black uppercase tracking-[0.2em]">Authorize with Google</span>
+                </button>
+              </div>
             </div>
 
             <div className="bg-[#0c0c04] border border-yellow-400/10 rounded-[32px] p-6 flex items-start space-x-5 shadow-2xl">
@@ -132,12 +154,6 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, theme }) => {
               <p className="text-[11px] text-gray-500 leading-relaxed font-medium">
                 Your session is protected by <span className="text-yellow-400 font-bold">Quantum-Resistant</span> algorithms. No metadata is logged during the handshake protocol.
               </p>
-            </div>
-
-            <div className="flex justify-center space-x-3">
-              <div className="w-2 h-2 rounded-full bg-yellow-400 shadow-[0_0_8px_#facc15"></div>
-              <div className="w-2 h-2 rounded-full bg-yellow-400/10"></div>
-              <div className="w-2 h-2 rounded-full bg-yellow-400/10"></div>
             </div>
           </div>
         </div>
