@@ -62,6 +62,19 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
     }
   }, [signals]);
 
+  const addSignal = (type: SignalEvent['type'], content: string) => {
+    const signalLog = JSON.parse(localStorage.getItem('nib_global_signals') || '[]');
+    const newSignal: SignalEvent = {
+      id: Date.now(),
+      sender: 'OVERSEER',
+      type,
+      content,
+      timestamp: Date.now()
+    };
+    localStorage.setItem('nib_global_signals', JSON.stringify([newSignal, ...signalLog].slice(0, 100)));
+    setSignals(prev => [newSignal, ...prev].slice(0, 100));
+  };
+
   const sendBroadcast = () => {
     if (!broadcastMsg.trim()) return;
     const msg: Message = {
@@ -72,15 +85,47 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
     };
     localStorage.setItem('nib_admin_broadcast', JSON.stringify(msg));
     setBroadcastMsg('');
-    
-    const signalLog = JSON.parse(localStorage.getItem('nib_global_signals') || '[]');
-    localStorage.setItem('nib_global_signals', JSON.stringify([{
-      id: Date.now(),
-      sender: 'ADMIN',
-      type: 'SYSTEM',
-      content: broadcastMsg,
-      timestamp: Date.now()
-    }, ...signalLog].slice(0, 100)));
+    addSignal('SYSTEM', broadcastMsg);
+  };
+
+  const handlePaymentAction = (reqId: string, status: 'approved' | 'rejected') => {
+    const req = payments.find(p => p.id === reqId);
+    if (!req) return;
+
+    if (status === 'approved') {
+      // Find the operative in the master list
+      const updatedOps = operatives.map(op => {
+        if (op.id === req.userId) {
+          const currentBal = parseFloat(op.walletBalance) || 0;
+          const addAmount = parseFloat(req.amount) || 0;
+          return { ...op, walletBalance: (currentBal + addAmount).toFixed(2) };
+        }
+        return op;
+      });
+
+      // Update LocalStorage and State
+      localStorage.setItem('nib_admin_ops', JSON.stringify(updatedOps));
+      setOperatives(updatedOps);
+      
+      // Update the specific user's session data if they are live
+      const savedUserData = localStorage.getItem('nib_sec_user_data');
+      if (savedUserData) {
+        const parsedUser = JSON.parse(savedUserData);
+        if (parsedUser.id === req.userId) {
+          parsedUser.walletBalance = (parseFloat(parsedUser.walletBalance) + parseFloat(req.amount)).toFixed(2);
+          localStorage.setItem('nib_sec_user_data', JSON.stringify(parsedUser));
+        }
+      }
+
+      addSignal('LIQUIDITY', `ACCESS GRANTED: ${req.amount} NIB coins synced to Operative ${req.username}.`);
+    } else {
+      addSignal('ALERT', `WARNING: Be careful. Signal request from ${req.username} was REJECTED by Overseer.`);
+    }
+
+    // Remove request from pending
+    const newPays = payments.filter(p => p.id !== reqId);
+    localStorage.setItem('nib_admin_pays', JSON.stringify(newPays));
+    setPayments(newPays);
   };
 
   const getTypeColor = (type: SignalEvent['type']) => {
@@ -261,8 +306,8 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
                             <p className="text-[10px] font-mono text-emerald-400 uppercase tracking-widest">{p.amount} ETB • {p.method}</p>
                          </div>
                          <div className="flex space-x-4">
-                            <button className="px-10 py-5 bg-red-600/10 text-red-600 rounded-3xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all">Reject</button>
-                            <button className="px-10 py-5 bg-yellow-400 text-black rounded-3xl text-[10px] font-black uppercase shadow-xl hover:scale-105 active:scale-95 transition-all">Authorize Node</button>
+                            <button onClick={() => handlePaymentAction(p.id, 'rejected')} className="px-10 py-5 bg-red-600/10 text-red-600 rounded-3xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all">Reject</button>
+                            <button onClick={() => handlePaymentAction(p.id, 'approved')} className="px-10 py-5 bg-yellow-400 text-black rounded-3xl text-[10px] font-black uppercase shadow-xl hover:scale-105 active:scale-95 transition-all">Authorize Node</button>
                          </div>
                       </div>
                     ))

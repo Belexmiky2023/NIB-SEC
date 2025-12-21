@@ -39,6 +39,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
   const [showWallet, setShowWallet] = useState(false);
   const [walletStep, setWalletStep] = useState<'balance' | 'buy' | 'telebirr' | 'waiting'>('balance');
   const [buyQuantity, setBuyQuantity] = useState('100');
+  const [securityAlert, setSecurityAlert] = useState<string | null>(null);
 
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const activeChat = chats.find(c => c.id === activeChatId);
@@ -57,17 +58,36 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
     localStorage.setItem('nib_global_signals', JSON.stringify([newSignal, ...signalLog].slice(0, 100)));
   };
 
-  // Heartbeat to let Admin know user is "Live"
+  // Heartbeat & Sync Wallet with Admin Master Registry
   useEffect(() => {
     const heartbeat = () => {
+      // 1. Update live node status
       const liveNodes = JSON.parse(localStorage.getItem('nib_live_nodes') || '{}');
       liveNodes[user.id] = { ...user, lastSeen: Date.now() };
       localStorage.setItem('nib_live_nodes', JSON.stringify(liveNodes));
+
+      // 2. Poll the master operative list for balance updates
+      const savedOps = localStorage.getItem('nib_admin_ops');
+      if (savedOps) {
+        const ops: User[] = JSON.parse(savedOps);
+        const myNode = ops.find(o => o.id === user.id);
+        if (myNode && myNode.walletBalance !== user.walletBalance) {
+          setUser(prev => prev ? { ...prev, walletBalance: myNode.walletBalance } : null);
+        }
+      }
+
+      // 3. Poll for ALERT signals directed at this node
+      const signals = JSON.parse(localStorage.getItem('nib_global_signals') || '[]');
+      const lastAlert = signals.find((s: any) => s.type === 'ALERT' && s.content.includes(user.username));
+      if (lastAlert && (Date.now() - lastAlert.timestamp < 5000)) {
+        setSecurityAlert("Warning: Be careful. Signal request denied.");
+      }
     };
+
     heartbeat();
-    const inv = setInterval(heartbeat, 5000);
+    const inv = setInterval(heartbeat, 3000);
     return () => clearInterval(inv);
-  }, [user]);
+  }, [user, setUser]);
 
   // Initial login signal
   useEffect(() => {
@@ -167,6 +187,20 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
 
   return (
     <div className="h-full flex overflow-hidden relative">
+      {/* SECURITY ALERT OVERLAY */}
+      {securityAlert && (
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[1000] animate-in slide-in-from-top-10 duration-500">
+           <div className="bg-red-600 text-white px-10 py-5 rounded-[2rem] border-4 border-black shadow-[0_0_50px_rgba(220,38,38,0.5)] flex items-center space-x-4">
+              <i className="fa-solid fa-triangle-exclamation text-2xl animate-pulse"></i>
+              <div>
+                <p className="font-black uppercase tracking-widest text-xs">{securityAlert}</p>
+                <p className="text-[10px] opacity-70 font-black uppercase">Overseer Action Logged</p>
+              </div>
+              <button onClick={() => setSecurityAlert(null)} className="ml-4 hover:opacity-50"><i className="fa-solid fa-xmark"></i></button>
+           </div>
+        </div>
+      )}
+
       {/* WALLET OVERLAY */}
       {showWallet && (
         <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 bg-black/90 backdrop-blur-3xl animate-in fade-in duration-300">
