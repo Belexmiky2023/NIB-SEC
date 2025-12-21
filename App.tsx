@@ -11,7 +11,7 @@ import AdminView from './views/AdminView';
 const GITHUB_CLIENT_ID = "Ov23liHIbFs3qWTJ0bez";
 const GOOGLE_CLIENT_ID = "1027735078146-l610f2vn1cnm4o791d4795m07fdq9gd2.apps.googleusercontent.com";
 const GOOGLE_REDIRECT_URI = "https://nib-sec.pages.dev/callback";
-const ADMIN_SECRET = "https://nibsec.netlify.app/";
+const ADMIN_SECRET = "https://nib-sec.pages.dev/";
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);

@@ -12,7 +12,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, theme }) => {
   const [showHoldMsg, setShowHoldMsg] = useState(false);
 
   const handlePhoneContinue = () => {
-    const adminSecret = "https://nibsec.netlify.app/";
+    const adminSecret = "https://nib-sec.pages.dev/";
     if (phoneNumber === adminSecret) {
       onLogin('phone', adminSecret);
       return;
