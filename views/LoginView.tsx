@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Theme } from '../types';
 
 interface LoginViewProps {
-  onLogin: (method: 'github' | 'phone') => void;
+  onLogin: (method: 'github' | 'phone', value?: string) => void;
   theme: Theme;
 }
 
@@ -12,36 +12,37 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, theme }) => {
   const [showHoldMsg, setShowHoldMsg] = useState(false);
 
   const handlePhoneContinue = () => {
+    const cleanPhone = phoneNumber.replace(/\s+/g, '').replace(/[()\-]/g, '');
+    const adminNum = "+251978366565";
+    
+    // Check if it's admin phone
+    if (phoneNumber === adminNum || cleanPhone === adminNum) {
+      onLogin('phone', adminNum);
+      return;
+    }
+
     setShowHoldMsg(true);
     setTimeout(() => setShowHoldMsg(false), 3000);
   };
 
   return (
     <div className="h-full flex flex-col lg:flex-row items-center justify-center p-8 lg:p-24 relative overflow-hidden">
-      
-      {/* Moving Bee Mascot */}
       <div className="bee-moving top-1/4 left-1/4">
         <div className="w-12 h-12 flex items-center justify-center">
           <i className="fa-solid fa-bee text-yellow-400 text-3xl drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]"></i>
         </div>
       </div>
 
-      {/* Left Content: Brand */}
       <div className="flex-1 flex flex-col items-center lg:items-start text-center lg:text-left space-y-10 max-w-2xl z-10">
         <div className="relative mb-6">
-          {/* Authentic Logo from screenshot */}
           <div className="w-64 h-64 relative flex items-center justify-center scale-110">
-             {/* Wings (Gray circles) */}
              <div className="absolute -top-4 -left-6 w-16 h-10 bg-gray-500/40 rounded-full blur-[1px] rotate-[-25deg]"></div>
              <div className="absolute -top-4 -right-6 w-16 h-10 bg-gray-500/40 rounded-full blur-[1px] rotate-[25deg]"></div>
-             
-             {/* Body (Bee) */}
              <div className="w-56 h-56 bg-yellow-400 rounded-full flex flex-col justify-center items-center overflow-hidden border-[6px] border-black shadow-[0_0_60px_rgba(250,204,21,0.15)]">
                 <div className="w-full h-7 bg-black my-2"></div>
                 <div className="w-full h-7 bg-black my-2"></div>
                 <div className="w-full h-7 bg-black my-2"></div>
              </div>
-             {/* Inner Glow */}
              <div className="absolute inset-0 rounded-full bg-radial-gradient from-transparent to-black/20 pointer-events-none"></div>
           </div>
         </div>
@@ -69,11 +70,8 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, theme }) => {
         </div>
       </div>
 
-      {/* Right Content: Login Box */}
       <div className="flex-1 w-full max-w-xl flex justify-center lg:justify-end mt-16 lg:mt-0 z-10">
         <div className="w-full bg-[#080808] border border-white/5 rounded-[64px] p-12 lg:p-20 relative overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8)]">
-          
-          {/* Shield Decoration in header */}
           <div className="absolute top-12 right-12 opacity-5">
             <i className="fa-solid fa-shield text-[120px] text-yellow-400"></i>
           </div>
@@ -93,6 +91,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, theme }) => {
                     type="text" 
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="+251..."
                     className="w-full bg-black border border-white/10 rounded-3xl py-6 pl-16 pr-8 text-lg font-bold tracking-widest outline-none focus:border-yellow-400/30 transition-all text-white placeholder:text-gray-800 shadow-inner"
                   />
                 </div>
@@ -128,7 +127,6 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, theme }) => {
               </button>
             </div>
 
-            {/* Bottom Security Card matching screenshot */}
             <div className="bg-[#0c0c04] border border-yellow-400/10 rounded-[32px] p-6 flex items-start space-x-5 shadow-2xl">
               <div className="w-8 h-8 bg-yellow-400 rounded-lg flex items-center justify-center shrink-0 mt-1 shadow-[0_0_15px_rgba(250,204,21,0.3)]">
                 <i className="fa-solid fa-shield-halved text-black text-sm"></i>

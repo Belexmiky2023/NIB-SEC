@@ -6,8 +6,10 @@ import LoadingView from './views/LoadingView';
 import SetupView from './views/SetupView';
 import MainView from './views/MainView';
 import CallingView from './views/CallingView';
+import AdminView from './views/AdminView';
 
 const GITHUB_CLIENT_ID = "Ov23liHIbFs3qWTJ0bez";
+const ADMIN_PHONE = "+251978366565";
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -23,10 +25,9 @@ const App: React.FC = () => {
   const handleOAuthSuccess = () => {
     setAppState('LOADING');
     setTimeout(() => {
-      // Mocking GitHub user data
       const mockUser: User = {
         id: 'gh-' + Math.random().toString(36).substr(2, 9),
-        username: '@gh_user', // Will be refined in SetupView
+        username: '@gh_user',
         displayName: 'GitHub Operative',
         email: 'dev@github.com',
         avatarUrl: 'https://picsum.photos/200',
@@ -39,7 +40,7 @@ const App: React.FC = () => {
     }, 3000);
   };
 
-  const handleLogin = (method: 'github' | 'phone') => {
+  const handleLogin = (method: 'github' | 'phone', phoneValue?: string) => {
     if (method === 'github') {
       const redirectUri = window.location.origin + window.location.pathname;
       const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email`;
@@ -47,11 +48,15 @@ const App: React.FC = () => {
     } else {
       setAppState('LOADING');
       setTimeout(() => {
+        if (phoneValue === ADMIN_PHONE) {
+          setAppState('ADMIN');
+          return;
+        }
         const mockUser: User = {
           id: 'u-' + Math.random().toString(36).substr(2, 9),
           username: '',
           displayName: '',
-          phone: '+1 555 000-0000',
+          phone: phoneValue,
           avatarUrl: 'https://picsum.photos/200',
           isProfileComplete: false,
           walletBalance: '0.00'
@@ -76,6 +81,7 @@ const App: React.FC = () => {
     <div className={`h-screen w-screen overflow-hidden transition-colors duration-300 ${theme === 'night' ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
       {appState === 'LOGIN' && <LoginView onLogin={handleLogin} theme={theme} />}
       {appState === 'LOADING' && <LoadingView />}
+      {appState === 'ADMIN' && <AdminView onExit={() => setAppState('LOGIN')} />}
       {appState === 'SETUP' && user && (
         <SetupView 
           initialData={user} 

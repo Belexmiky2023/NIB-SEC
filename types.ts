@@ -8,6 +8,19 @@ export interface User {
   avatarUrl: string;
   isProfileComplete: boolean;
   walletBalance: string;
+  isBanned?: boolean;
+  // Fix: Added isVerified property as it is used in AdminView and elsewhere to track verified user status
+  isVerified?: boolean;
+}
+
+export interface PaymentRequest {
+  id: string;
+  userId: string;
+  username: string;
+  amount: string;
+  method: string;
+  timestamp: number;
+  status: 'pending' | 'approved' | 'rejected';
 }
 
 export interface Message {
@@ -30,5 +43,5 @@ export interface Chat {
   isVerified?: boolean;
 }
 
-export type AppState = 'LOGIN' | 'LOADING' | 'SETUP' | 'MAIN' | 'CALLING';
+export type AppState = 'LOGIN' | 'LOADING' | 'SETUP' | 'MAIN' | 'CALLING' | 'ADMIN';
 export type Theme = 'night' | 'light';
