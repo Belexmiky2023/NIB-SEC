@@ -15,38 +15,29 @@ const SetupView: React.FC<SetupViewProps> = ({ initialData, onComplete }) => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isChecking, setIsChecking] = useState(false);
 
-  const takenUsernames = [
+  const reservedUsernames = [
     '@nibsec', '@nibsecoffical', '@nibsecurity', 
     '@oryn', '@oryn179', '@179oryn'
   ];
 
   useEffect(() => {
     const cleanUsername = username.toLowerCase().trim();
+    const namePart = cleanUsername.replace('@', '');
+
     if (cleanUsername.length > 1) {
       setIsChecking(true);
       const timer = setTimeout(() => {
-        const namePart = cleanUsername.replace('@', '');
-        
-        if (takenUsernames.includes(cleanUsername)) {
-          setError('Username already exists.');
-          setSuggestions([
-            `@nib_${namePart}`,
-            `@${namePart}_sec`,
-            `@v_${namePart}`,
-            `@${namePart}_bee`
-          ]);
-        } else if (!username.startsWith('@')) {
+        if (!username.startsWith('@')) {
           setError('Username must start with @');
           setSuggestions([]);
         } else if (/^\d+$/.test(namePart)) {
           setError('User name can not be number');
-          setSuggestions([
-            `@user_${namePart}`,
-            `@bee_${namePart}`,
-            `@nib${namePart}`
-          ]);
-        } else if (username.length < 4) {
-          setError('Username is too short.');
+          setSuggestions([`@nib_${namePart}`, `@bee_${namePart}`, `@operative_${namePart}`]);
+        } else if (reservedUsernames.includes(cleanUsername)) {
+          setError('Username is already exist');
+          setSuggestions([`@${namePart}_v2`, `@the_${namePart}`, `@${namePart}_sec`]);
+        } else if (namePart.length < 3) {
+          setError('Username is too short');
           setSuggestions([]);
         } else {
           setError(null);
