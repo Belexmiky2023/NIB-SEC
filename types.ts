@@ -2,11 +2,12 @@
 export interface User {
   id: string;
   username: string;
+  displayName: string;
   phone?: string;
   email?: string;
   avatarUrl: string;
   isProfileComplete: boolean;
-  walletBalance?: string;
+  walletBalance: string;
 }
 
 export interface Message {
@@ -26,6 +27,7 @@ export interface Chat {
   membersCount?: number;
   avatar: string;
   isPinned?: boolean;
+  isVerified?: boolean;
 }
 
 export type AppState = 'LOGIN' | 'LOADING' | 'SETUP' | 'MAIN' | 'CALLING';

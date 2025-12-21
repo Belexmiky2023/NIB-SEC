@@ -23,9 +23,11 @@ const App: React.FC = () => {
   const handleOAuthSuccess = () => {
     setAppState('LOADING');
     setTimeout(() => {
+      // Mocking GitHub user data
       const mockUser: User = {
         id: 'gh-' + Math.random().toString(36).substr(2, 9),
-        username: '',
+        username: '@gh_user', // Will be refined in SetupView
+        displayName: 'GitHub Operative',
         email: 'dev@github.com',
         avatarUrl: 'https://picsum.photos/200',
         isProfileComplete: false,
@@ -43,12 +45,12 @@ const App: React.FC = () => {
       const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email`;
       window.location.href = githubAuthUrl;
     } else {
-      // Manual phone login simulation
       setAppState('LOADING');
       setTimeout(() => {
         const mockUser: User = {
           id: 'u-' + Math.random().toString(36).substr(2, 9),
           username: '',
+          displayName: '',
           phone: '+1 555 000-0000',
           avatarUrl: 'https://picsum.photos/200',
           isProfileComplete: false,
@@ -60,9 +62,9 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSetupComplete = (username: string, avatar: string) => {
+  const handleSetupComplete = (username: string, avatar: string, displayName: string) => {
     if (user) {
-      setUser({ ...user, username, avatarUrl: avatar, isProfileComplete: true });
+      setUser({ ...user, username, avatarUrl: avatar, displayName, isProfileComplete: true });
       setAppState('LOADING');
       setTimeout(() => setAppState('MAIN'), 2000);
     }
@@ -82,7 +84,8 @@ const App: React.FC = () => {
       )}
       {appState === 'MAIN' && user && (
         <MainView 
-          user={user} 
+          user={user}
+          setUser={setUser}
           onStartCall={() => setAppState('CALLING')} 
           theme={theme}
           toggleTheme={toggleTheme}
