@@ -67,12 +67,45 @@
       clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
     }
 
-    /* Glassmorphism */
-    .glass {
-      background: rgba(255, 255, 255, 0.03);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.05);
+    /* Glass Card Style */
+    .glass-card {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .glass-card::before {
+      content: "";
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: linear-gradient(
+        45deg,
+        transparent 45%,
+        rgba(250, 204, 21, 0.1) 48%,
+        rgba(250, 204, 21, 0.3) 50%,
+        rgba(250, 204, 21, 0.1) 52%,
+        transparent 55%
+      );
+      transform: rotate(45deg);
+      animation: cardGlint 6s infinite;
+      pointer-events: none;
+    }
+
+    @keyframes cardGlint {
+      0% { transform: translateX(-100%) rotate(45deg); }
+      100% { transform: translateX(100%) rotate(45deg); }
+    }
+
+    .embossed {
+      text-shadow: 1px 1px 0px rgba(0,0,0,0.5), -1px -1px 0px rgba(255,255,255,0.1);
+      letter-spacing: 0.15em;
     }
 
     /* Message Send Animation */
@@ -80,20 +113,15 @@
       0% {
         opacity: 0;
         transform: translateY(20px) scale(0.95);
-        box-shadow: 0 0 0px rgba(250, 204, 21, 0);
-      }
-      50% {
-        box-shadow: 0 0 30px rgba(250, 204, 21, 0.4);
       }
       100% {
         opacity: 1;
         transform: translateY(0) scale(1);
-        box-shadow: 0 0 0px rgba(250, 204, 21, 0);
       }
     }
 
     .animate-message-out {
-      animation: message-send 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      animation: message-send 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
     }
 
     /* Scrollbar */
