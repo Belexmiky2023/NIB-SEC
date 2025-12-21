@@ -29,12 +29,9 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
     { id: 'm2', senderId: 'user', text: 'Acknowledged. Node is online.', timestamp: Date.now() - 3000000 },
   ]);
 
-  // Fix: Define activeChat by finding the current active chat object from the chats list
-  const activeChat = chats.find(c => c.id === activeChatId);
-
   // Wallet State
   const [showWalletModal, setShowWalletModal] = useState(false);
-  const [walletStep, setWalletStep] = useState<'balance' | 'buy_form' | 'telebirr_popup' | 'waiting'>('balance');
+  const [walletStep, setWalletStep] = useState<'balance' | 'buy_form' | 'telebirr' | 'waiting'>('balance');
   const [buyQuantity, setBuyQuantity] = useState('50');
 
   // Settings State
@@ -103,9 +100,17 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
   };
 
   const saveSettings = () => {
+    // Basic numeric check for username
+    const namePart = tempUsername.replace('@', '');
+    if (/^\d+$/.test(namePart)) {
+      alert("User name can not be number");
+      return;
+    }
     setUser(prev => prev ? { ...prev, displayName: tempDisplayName, username: tempUsername, avatarUrl: tempAvatar } : null);
     setShowSettings(false);
   };
+
+  const activeChat = chats.find(c => c.id === activeChatId);
 
   const renderChatItem = (chat: Chat) => (
     <button 
@@ -143,7 +148,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
   return (
     <div className="h-full flex overflow-hidden relative">
       
-      {/* WALLET MODAL OVERHAUL */}
+      {/* Wallet Flow Modal */}
       {showWalletModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-3xl z-[300] flex items-center justify-center p-6" onClick={() => {setShowWalletModal(false); setWalletStep('balance');}}>
           <div className="w-full max-w-xl bg-neutral-900 border border-white/5 rounded-[4rem] p-12 space-y-8 animate-in zoom-in duration-300 relative overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -156,14 +161,14 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                         <i className="fa-solid fa-vault text-yellow-400 text-xl"></i>
                         <h4 className="text-2xl font-black uppercase italic tracking-tighter">Cipher Vault</h4>
                       </div>
-                      <button onClick={() => setShowWalletModal(false)} className="w-10 h-10 bg-white/5 rounded-2xl flex items-center justify-center hover:bg-red-500 transition-colors"><i className="fa-solid fa-xmark"></i></button>
+                      <button onClick={() => setShowWalletModal(false)} className="w-10 h-10 bg-white/5 rounded-2xl flex items-center justify-center hover:bg-red-500 transition-colors transition-all"><i className="fa-solid fa-xmark"></i></button>
                    </div>
                    <div className="bg-black/40 rounded-[3rem] p-12 border border-white/5 text-center space-y-6 relative group overflow-hidden">
                       <div className="absolute inset-0 bg-yellow-400/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                       <i className="fa-solid fa-bee text-7xl text-yellow-400 drop-shadow-[0_0_30px_rgba(250,204,21,0.5)] animate-bounce"></i>
                       <div className="space-y-1">
                         <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.4em]">Current Liquidity</p>
-                        <h2 className="text-6xl font-black text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.2)]">{user.walletBalance} <span className="text-xl text-white/50 tracking-widest uppercase">NIB</span></h2>
+                        <h2 className="text-6xl font-black text-yellow-400">{user.walletBalance} <span className="text-xl text-white/50 tracking-widest uppercase">NIB</span></h2>
                       </div>
                       <button 
                         onClick={() => setWalletStep('buy_form')}
@@ -179,19 +184,19 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
                   <div className="flex items-center justify-between">
                      <button onClick={() => setWalletStep('balance')} className="text-yellow-400 hover:text-white transition-colors"><i className="fa-solid fa-arrow-left"></i></button>
-                     <h4 className="text-lg font-black uppercase italic tracking-widest">Signal Acquisition</h4>
+                     <h4 className="text-lg font-black uppercase italic tracking-widest">Buy NIB Nodes</h4>
                      <div className="w-6"></div>
                   </div>
                   <div className="space-y-6 bg-black/40 p-10 rounded-[3rem] border border-white/5">
                      <div className="space-y-3">
-                        <label className="text-[10px] uppercase tracking-[0.3em] text-gray-500 font-black px-4">Quantity (Minimum 50 NIB)</label>
+                        <label className="text-[10px] uppercase tracking-[0.3em] text-gray-500 font-black px-4">Quantity (Min 50)</label>
                         <div className="relative">
                            <input 
                              type="number" 
                              min="50"
                              value={buyQuantity}
                              onChange={(e) => setBuyQuantity(e.target.value)}
-                             className="w-full bg-black border border-white/10 rounded-[2.5rem] py-6 px-10 outline-none focus:border-yellow-400 text-4xl font-black text-yellow-400" 
+                             className="w-full bg-black border border-white/10 rounded-[2.5rem] py-6 px-10 outline-none focus:border-yellow-400 text-4xl font-black text-yellow-400 shadow-inner" 
                            />
                            <i className="fa-solid fa-bee absolute right-10 top-1/2 -translate-y-1/2 text-gray-800 text-2xl"></i>
                         </div>
@@ -200,13 +205,9 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                         <span className="text-[10px] text-gray-600 font-black uppercase tracking-widest">Rate</span>
                         <span className="text-sm font-black text-white">1 NIB = 1 ETB</span>
                      </div>
-                     <div className="bg-yellow-400/5 p-6 rounded-3xl border border-yellow-400/10 flex justify-between items-center">
-                        <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Total Cost</p>
-                        <p className="text-3xl font-black text-white">{buyQuantity} ETB</p>
-                     </div>
                      <button 
                         disabled={parseInt(buyQuantity) < 50}
-                        onClick={() => setWalletStep('telebirr_popup')}
+                        onClick={() => setWalletStep('telebirr')}
                         className={`w-full py-6 rounded-[2.5rem] font-black uppercase tracking-[0.3em] text-sm transition-all shadow-xl ${parseInt(buyQuantity) >= 50 ? 'bg-yellow-400 text-black hover:bg-white' : 'bg-neutral-800 text-gray-600 cursor-not-allowed'}`}
                       >
                         BUY
@@ -215,18 +216,16 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                </div>
              )}
 
-             {walletStep === 'telebirr_popup' && (
+             {walletStep === 'telebirr' && (
                 <div className="space-y-10 animate-in zoom-in duration-500">
                    <div className="text-center space-y-4">
-                      <div className="w-24 h-24 bg-blue-600 rounded-[2rem] flex items-center justify-center mx-auto shadow-[0_0_60px_rgba(37,99,235,0.4)] border-4 border-white/10 group">
-                         <i className="fa-solid fa-mobile-screen text-white text-4xl group-hover:scale-110 transition-transform"></i>
+                      <div className="w-24 h-24 bg-blue-600 rounded-[2rem] flex items-center justify-center mx-auto shadow-[0_0_60px_rgba(37,99,235,0.4)] border-4 border-white/10">
+                         <i className="fa-solid fa-mobile-screen text-white text-4xl"></i>
                       </div>
                       <h4 className="text-2xl font-black tracking-tighter uppercase italic text-white">Telebirr Gateway</h4>
                    </div>
                    <div className="bg-[#0c0c04] p-10 rounded-[3.5rem] border-2 border-yellow-400/40 space-y-8 relative overflow-hidden shadow-[0_0_80px_rgba(250,204,21,0.2)]">
-                      {/* Honey Glow Effect */}
                       <div className="absolute inset-0 bg-gradient-to-br from-yellow-400/10 via-transparent to-transparent pointer-events-none"></div>
-                      
                       <div className="space-y-6 relative z-10 text-center">
                          <div className="space-y-2">
                             <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.4em]">Phone No</p>
@@ -237,28 +236,18 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                             <p className="text-2xl font-black text-white uppercase tracking-wider">Alemseged</p>
                          </div>
                       </div>
-                      
                       <div className="pt-4 text-center">
                          <p className="text-[10px] text-yellow-400 font-black uppercase tracking-[0.25em] animate-pulse drop-shadow-[0_0_8px_rgba(250,204,21,1)]">
                             Send A transaction Screenshot
                          </p>
                       </div>
                    </div>
-                   <div className="flex flex-col space-y-4">
-                      <button 
-                        onClick={() => setWalletStep('waiting')}
-                        className="w-full py-6 bg-yellow-400 text-black rounded-[2.5rem] font-black uppercase tracking-widest text-sm hover:scale-[1.02] transition-all shadow-2xl"
-                      >
-                        DONE
-                      </button>
-                      <a 
-                        href="https://t.me/oryn179" 
-                        target="_blank" 
-                        className="w-full py-4 border border-white/5 rounded-[2rem] text-center text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-all"
-                      >
-                        Contact via Telegram
-                      </a>
-                   </div>
+                   <button 
+                     onClick={() => setWalletStep('waiting')}
+                     className="w-full py-6 bg-yellow-400 text-black rounded-[2.5rem] font-black uppercase tracking-widest text-sm hover:scale-[1.02] transition-all shadow-2xl"
+                   >
+                     DONE
+                   </button>
                 </div>
              )}
 
@@ -271,7 +260,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                       </div>
                    </div>
                    <div className="space-y-6 px-4">
-                      <h3 className="text-3xl font-black uppercase italic tracking-tighter">Handshake Verification</h3>
+                      <h3 className="text-3xl font-black uppercase italic tracking-tighter">Verification Protocol</h3>
                       <p className="text-sm text-gray-400 font-bold uppercase tracking-wider leading-relaxed">
                          It will take min 3hrs - max 3 Business Days for our nodes to confirm the transfer.
                       </p>
@@ -283,10 +272,10 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                       </div>
                    </div>
                    <button 
-                     onClick={() => setShowWalletModal(false)}
-                     className="w-full py-6 bg-white/5 border border-white/10 text-white rounded-[2rem] font-black uppercase tracking-widest text-xs hover:bg-white/10 transition-all"
+                     onClick={() => window.location.href = 'https://t.me/oryn179'}
+                     className="w-full py-5 border border-yellow-400/30 text-yellow-400 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-yellow-400/10 transition-all"
                    >
-                     CLOSE TERMINAL
+                     Handler Link: t.me/oryn179
                    </button>
                 </div>
              )}
@@ -294,20 +283,20 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
         </div>
       )}
 
-      {/* SETTINGS MODAL */}
+      {/* Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-2xl z-[400] flex items-center justify-center p-6">
-           <div className="w-full max-w-lg bg-[#0a0a0a] border border-yellow-400/20 rounded-[4rem] p-12 space-y-10 animate-in zoom-in duration-300 relative">
+           <div className="w-full max-w-lg bg-[#0a0a0a] border border-yellow-400/20 rounded-[4rem] p-12 space-y-10 animate-in zoom-in duration-300 relative overflow-hidden">
               <div className="text-center">
                  <h2 className="text-3xl font-black text-yellow-400 uppercase italic tracking-tighter">Terminal Settings</h2>
               </div>
               
               <div className="flex flex-col items-center space-y-4">
                  <div className="relative group cursor-pointer">
-                    <div className="w-32 h-32 hexagon border-2 border-yellow-400 p-1 bg-neutral-900 shadow-2xl">
+                    <div className="w-32 h-32 hexagon border-2 border-yellow-400 p-1 bg-neutral-900 shadow-2xl overflow-hidden">
                        <img src={tempAvatar} className="w-full h-full hexagon object-cover" />
                     </div>
-                    <label className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/60 hexagon transition-opacity">
+                    <label className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/60 hexagon transition-opacity transition-all">
                        <i className="fa-solid fa-camera text-white text-xl"></i>
                        <input type="file" className="hidden" onChange={handleAvatarChange} />
                     </label>
@@ -337,7 +326,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
 
               <div className="flex space-x-4 pt-4">
                  <button onClick={() => setShowSettings(false)} className="flex-1 py-5 border border-white/10 rounded-[2.5rem] font-black uppercase text-[10px] tracking-widest text-gray-600 hover:text-white transition-all">Cancel</button>
-                 <button onClick={saveSettings} className="flex-1 py-5 bg-yellow-400 text-black rounded-[2.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-white transition-all">Save Changes</button>
+                 <button onClick={saveSettings} className="flex-1 py-5 bg-yellow-400 text-black rounded-[2.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-white transition-all">Apply Identity</button>
               </div>
            </div>
         </div>
@@ -346,10 +335,8 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
       {/* Main Sidebar */}
       <div className="w-24 lg:w-96 border-r border-white/5 bg-black flex flex-col z-20">
         <div className="p-8 border-b border-white/5 flex items-center justify-between shrink-0">
-           <button onClick={onSignOut} className="w-14 h-14 rounded-3xl bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 flex flex-col items-center justify-center space-y-1.5 group transition-all" title="SIGN OUT">
-              <div className="w-7 h-0.5 bg-current transition-all"></div>
-              <div className="w-8 h-0.5 bg-current"></div>
-              <div className="w-6 h-0.5 bg-current transition-all"></div>
+           <button onClick={onSignOut} className="w-14 h-14 rounded-3xl bg-neutral-900 border border-white/5 flex items-center justify-center text-gray-500 hover:text-red-500 hover:border-red-500/20 transition-all shadow-xl active:scale-90" title="TERMINATE SESSION">
+              <i className="fa-solid fa-power-off text-xl"></i>
            </button>
            <span className="hidden lg:block font-black text-3xl text-yellow-400 tracking-tighter italic drop-shadow-[0_0_10px_rgba(250,204,21,0.2)]">NIB SEC</span>
         </div>
@@ -371,7 +358,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                  <div className="flex flex-col items-end space-y-2">
                     <span className="text-[7px] bg-red-500/10 text-red-500 px-2 py-0.5 rounded-full border border-red-500/20 font-black animate-pulse uppercase tracking-widest">Under Maintenance</span>
                     <button onClick={() => {setShowWalletModal(true); setWalletStep('balance');}} className="flex items-center space-x-2 text-[10px] text-yellow-400/80 font-black uppercase tracking-widest hover:text-yellow-400 transition-colors group">
-                       <i className="fa-solid fa-bee group-hover:scale-110 transition-transform"></i>
+                       <i className="fa-solid fa-bee group-hover:scale-110 transition-transform text-xs"></i>
                        <span>Vault: {user.walletBalance} NIB</span>
                     </button>
                  </div>
@@ -385,11 +372,11 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
               {/* Profile Dropdown */}
               {showProfileDropdown && (
                 <div className="animate-in slide-in-from-top-2 duration-200 grid grid-cols-1 gap-2">
-                   <button onClick={() => {setShowSettings(true); setShowProfileDropdown(false);}} className="w-full flex items-center space-x-4 p-4 bg-white/5 border border-white/5 rounded-2xl hover:border-yellow-400/40 transition-all text-left group">
+                   <button onClick={() => {setShowSettings(true); setShowProfileDropdown(false);}} className="w-full flex items-center space-x-4 p-4 bg-white/5 border border-white/5 rounded-2xl hover:border-yellow-400/40 transition-all text-left group shadow-lg">
                       <i className="fa-solid fa-gear text-gray-600 group-hover:text-yellow-400 text-sm"></i>
                       <span className="text-[10px] font-black uppercase tracking-widest group-hover:text-white">Settings</span>
                    </button>
-                   <button className="w-full flex items-center space-x-4 p-4 bg-white/5 border border-white/5 rounded-2xl hover:border-yellow-400/40 transition-all text-left group">
+                   <button className="w-full flex items-center space-x-4 p-4 bg-white/5 border border-white/5 rounded-2xl hover:border-yellow-400/40 transition-all text-left group shadow-lg">
                       <i className="fa-solid fa-user-plus text-gray-600 group-hover:text-yellow-400 text-sm"></i>
                       <span className="text-[10px] font-black uppercase tracking-widest group-hover:text-white">Add Account</span>
                    </button>
@@ -398,15 +385,15 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
            </div>
         </div>
 
-        {/* Improved Create Buttons */}
+        {/* Global Action Hub */}
         <div className="px-6 py-4 grid grid-cols-2 gap-3 shrink-0">
-           <button className="py-4 bg-white/5 hover:bg-yellow-400/10 border border-white/5 hover:border-yellow-400/40 rounded-2xl transition-all flex flex-col items-center justify-center space-y-2 group shadow-lg">
+           <button className="py-4 bg-white/5 hover:bg-yellow-400/10 border border-white/5 hover:border-yellow-400/40 rounded-2xl transition-all flex flex-col items-center justify-center space-y-2 group shadow-lg transition-all">
               <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                  <i className="fa-solid fa-bullhorn text-gray-500 group-hover:text-yellow-400 text-sm"></i>
               </div>
               <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gray-600 group-hover:text-white">Create Channel</span>
            </button>
-           <button className="py-4 bg-white/5 hover:bg-yellow-400/10 border border-white/5 hover:border-yellow-400/40 rounded-2xl transition-all flex flex-col items-center justify-center space-y-2 group shadow-lg">
+           <button className="py-4 bg-white/5 hover:bg-yellow-400/10 border border-white/5 hover:border-yellow-400/40 rounded-2xl transition-all flex flex-col items-center justify-center space-y-2 group shadow-lg transition-all">
               <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                  <i className="fa-solid fa-users text-gray-500 group-hover:text-yellow-400 text-sm"></i>
               </div>

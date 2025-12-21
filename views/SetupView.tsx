@@ -35,7 +35,7 @@ const SetupView: React.FC<SetupViewProps> = ({ initialData, onComplete }) => {
           setSuggestions([`@nib_${namePart}`, `@bee_${namePart}`, `@operative_${namePart}`]);
         } else if (reservedUsernames.includes(cleanUsername)) {
           setError('Username is already exist');
-          setSuggestions([`@${namePart}_v2`, `@the_${namePart}`, `@${namePart}_sec`]);
+          setSuggestions([`@${namePart}_sec`, `@the_${namePart}`, `@v_${namePart}`]);
         } else if (namePart.length < 3) {
           setError('Username is too short');
           setSuggestions([]);
