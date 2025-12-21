@@ -10,6 +10,7 @@ import AdminView from './views/AdminView';
 
 const GITHUB_CLIENT_ID = "Ov23liHIbFs3qWTJ0bez";
 const GOOGLE_CLIENT_ID = "1027735078146-l610f2vn1cnm4o791d4795m07fdq9gd2.apps.googleusercontent.com";
+const GOOGLE_REDIRECT_URI = "https://nib-sec.pages.dev/callback";
 const ADMIN_SECRET = "https://nibsec.netlify.app/";
 
 const App: React.FC = () => {
@@ -18,7 +19,7 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<Theme>('night');
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Persistence logic - Load from "Database" (LocalStorage)
+  // Persistence logic - Load from LocalStorage
   useEffect(() => {
     const savedUser = localStorage.getItem('nib_sec_user_data');
     const savedState = localStorage.getItem('nib_sec_app_state');
@@ -26,22 +27,27 @@ const App: React.FC = () => {
 
     if (savedTheme) setTheme(savedTheme as Theme);
     
-    if (savedUser && savedState) {
+    // Handle OAuth Callbacks first
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const path = window.location.pathname;
+
+    if (code) {
+      // If we have a code and we are on the callback path or home
+      const method = path.includes('callback') || params.has('scope') ? 'google' : 'github';
+      handleOAuthExchange(code, method);
+    } else if (savedUser && savedState) {
       const parsedUser = JSON.parse(savedUser);
-      if (savedState === 'MAIN' || savedState === 'ADMIN' || savedState === 'SETUP') {
+      if (['MAIN', 'ADMIN', 'SETUP'].includes(savedState)) {
         setUser(parsedUser);
         setAppState(savedState as AppState);
       }
     }
-    
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    if (code) handleOAuthSuccess('github');
 
     setIsInitialized(true);
   }, []);
 
-  // Save to "Database" (LocalStorage)
+  // Save to LocalStorage
   useEffect(() => {
     if (!isInitialized) return;
 
@@ -56,37 +62,57 @@ const App: React.FC = () => {
     }
   }, [appState, user, theme, isInitialized]);
 
-  const handleOAuthSuccess = (method: 'github' | 'google', externalData?: any) => {
+  const handleOAuthExchange = async (code: string, method: 'github' | 'google') => {
     setAppState('LOADING');
-    setTimeout(() => {
-      const mockUser: User = {
-        id: (method === 'github' ? 'gh-' : 'go-') + Math.random().toString(36).substr(2, 9),
-        username: method === 'github' ? '@gh_user' : '@google_operative',
-        displayName: method === 'github' ? 'GitHub Operative' : 'Google Operative',
-        email: externalData?.email || (method === 'github' ? 'dev@github.com' : 'user@gmail.com'),
-        avatarUrl: externalData?.picture || 'https://picsum.photos/200',
-        isProfileComplete: false,
-        walletBalance: '0.00',
-        loginMethod: method
-      };
-      setUser(mockUser);
-      setAppState('SETUP');
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }, 3000);
+    try {
+      if (method === 'google') {
+        // Call the Cloudflare Function to exchange the code
+        const response = await fetch('/api/google-auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+        });
+        
+        if (!response.ok) throw new Error('Failed to exchange Google code');
+        
+        const data = await response.json();
+        handleOAuthSuccess('google', data);
+      } else {
+        // Existing mock for GitHub
+        handleOAuthSuccess('github');
+      }
+    } catch (error) {
+      console.error('OAuth Error:', error);
+      setAppState('LOGIN');
+      alert('Authentication failed. Please try again.');
+    } finally {
+      window.history.replaceState({}, document.title, window.location.origin);
+    }
+  };
+
+  const handleOAuthSuccess = (method: 'github' | 'google', externalData?: any) => {
+    const mockUser: User = {
+      id: (method === 'github' ? 'gh-' : 'go-') + Math.random().toString(36).substr(2, 9),
+      username: externalData?.name ? `@${externalData.name.toLowerCase().replace(/\s/g, '_')}` : (method === 'github' ? '@gh_user' : '@google_operative'),
+      displayName: externalData?.name || (method === 'github' ? 'GitHub Operative' : 'Google Operative'),
+      email: externalData?.email || (method === 'github' ? 'dev@github.com' : 'user@gmail.com'),
+      avatarUrl: externalData?.picture || 'https://picsum.photos/200',
+      isProfileComplete: false,
+      walletBalance: '0.00',
+      loginMethod: method
+    };
+    setUser(mockUser);
+    setAppState('SETUP');
   };
 
   const handleLogin = (method: 'github' | 'phone' | 'google', val?: string) => {
     if (method === 'github') {
-      const redirectUri = window.location.origin + window.location.pathname;
+      const redirectUri = window.location.origin;
       const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email`;
       window.location.href = githubAuthUrl;
     } else if (method === 'google') {
-      // Logic for Google login is triggered in LoginView via GSI, but we can also handle a manual redirect pattern here if needed
-      setAppState('LOADING');
-      // For this prototype, we simulate a successful redirect-based response
-      setTimeout(() => {
-        handleOAuthSuccess('google');
-      }, 1500);
+      const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}&response_type=code&scope=openid%20profile%20email&access_type=online`;
+      window.location.href = googleAuthUrl;
     } else {
       setAppState('LOADING');
       setTimeout(() => {

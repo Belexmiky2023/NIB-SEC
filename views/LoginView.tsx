@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Theme } from '../types';
 
 interface LoginViewProps {
@@ -20,20 +20,6 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, theme }) => {
     setShowHoldMsg(true);
     setTimeout(() => setShowHoldMsg(false), 3000);
   };
-
-  // Optional: Handle Google ID Token callback if using GSI One Tap or a standard button
-  /*
-  useEffect(() => {
-    if (window.google) {
-      window.google.accounts.id.initialize({
-        client_id: "1027735078146-l610f2vn1cnm4o791d4795m07fdq9gd2.apps.googleusercontent.com",
-        callback: (response: any) => {
-          onLogin('google', response.credential);
-        }
-      });
-    }
-  }, []);
-  */
 
   return (
     <div className="h-full flex flex-col lg:flex-row items-center justify-center p-8 lg:p-24 relative overflow-hidden">
@@ -141,7 +127,9 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, theme }) => {
                   onClick={() => onLogin('google')}
                   className="w-full bg-black border border-white/10 hover:border-yellow-400/40 py-5 rounded-3xl flex items-center justify-center space-x-6 transition-all group shadow-lg"
                 >
-                  <i className="fa-brands fa-google text-2xl group-hover:scale-110 transition-transform"></i>
+                  <div className="relative w-7 h-7 flex items-center justify-center bg-white rounded-full group-hover:scale-110 transition-transform overflow-hidden">
+                    <i className="fa-brands fa-google text-black text-lg"></i>
+                  </div>
                   <span className="text-sm font-black uppercase tracking-[0.2em]">Authorize with Google</span>
                 </button>
               </div>
