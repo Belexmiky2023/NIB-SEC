@@ -15,9 +15,6 @@
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
   />
 
-  <!-- Google Identity Services -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-
   <!-- Google Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -37,108 +34,62 @@
       width: 100vw;
     }
 
-    /* Honeycomb background */
     .honeycomb-bg {
       background-color: #000;
       background-image:
-        radial-gradient(circle at center, rgba(250, 204, 21, 0.05) 0%, transparent 70%),
-        linear-gradient(30deg, #0a0a0a 12%, transparent 12.5%, transparent 87%, #0a0a0a 87.5%, #0a0a0a),
-        linear-gradient(150deg, #0a0a0a 12%, transparent 12.5%, transparent 87%, #0a0a0a 87.5%, #0a0a0a),
-        linear-gradient(60deg, #111 25%, transparent 25.5%, transparent 75%, #111 75.5%, #111);
-      background-size: 80px 140px;
-    }
-
-    /* Bee flight animation */
-    .bee-moving {
-      animation: beeFlight 8s infinite ease-in-out;
-      position: absolute;
-      z-index: 50;
-    }
-
-    @keyframes beeFlight {
-      0% { transform: translate(0, 0) rotate(0deg); }
-      25% { transform: translate(100px, -50px) rotate(15deg); }
-      50% { transform: translate(50px, 50px) rotate(-10deg); }
-      75% { transform: translate(-100px, 0px) rotate(5deg); }
-      100% { transform: translate(0, 0) rotate(0deg); }
+        radial-gradient(circle at 50% 50%, rgba(250, 204, 21, 0.05) 0%, transparent 80%),
+        linear-gradient(30deg, #050505 12%, transparent 12.5%, transparent 87%, #050505 87.5%, #050505),
+        linear-gradient(150deg, #050505 12%, transparent 12.5%, transparent 87%, #050505 87.5%, #050505),
+        linear-gradient(60deg, #0a0a0a 25%, transparent 25.5%, transparent 75%, #0a0a0a 75.5%, #0a0a0a);
+      background-size: 60px 104px;
     }
 
     .hexagon {
       clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
     }
 
-    /* Glass Card Style */
-    .glass-card {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-      position: relative;
-      overflow: hidden;
+    /* Honey Glow Popups */
+    .honey-glow {
+      box-shadow: 0 0 50px rgba(250, 204, 21, 0.2);
+      border: 1px solid rgba(250, 204, 21, 0.3);
     }
 
-    .glass-card::before {
-      content: "";
-      position: absolute;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      background: linear-gradient(
-        45deg,
-        transparent 45%,
-        rgba(250, 204, 21, 0.1) 48%,
-        rgba(250, 204, 21, 0.3) 50%,
-        rgba(250, 204, 21, 0.1) 52%,
-        transparent 55%
-      );
-      transform: rotate(45deg);
-      animation: cardGlint 6s infinite;
-      pointer-events: none;
+    .text-glow {
+      text-shadow: 0 0 10px rgba(250, 204, 21, 0.8);
     }
 
-    @keyframes cardGlint {
-      0% { transform: translateX(-100%) rotate(45deg); }
-      100% { transform: translateX(100%) rotate(45deg); }
+    /* Bee Flight Path */
+    .bee-flight {
+      animation: bee-random 20s infinite linear;
     }
 
-    .embossed {
-      text-shadow: 1px 1px 0px rgba(0,0,0,0.5), -1px -1px 0px rgba(255,255,255,0.1);
-      letter-spacing: 0.15em;
+    @keyframes bee-random {
+      0% { transform: translate(0, 0) rotate(0deg); }
+      25% { transform: translate(100vw, -20vh) rotate(45deg); }
+      50% { transform: translate(20vw, 80vh) rotate(180deg); }
+      75% { transform: translate(-50vw, 30vh) rotate(270deg); }
+      100% { transform: translate(0, 0) rotate(360deg); }
     }
 
     /* Message Send Animation */
-    @keyframes message-send {
-      0% {
-        opacity: 0;
-        transform: translateY(20px) scale(0.95);
-      }
-      100% {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
+    @keyframes message-up {
+      0% { opacity: 0; transform: translateY(10px) scale(0.98); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
     }
-
-    .animate-message-out {
-      animation: message-send 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    .animate-msg {
+      animation: message-up 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     }
 
     /* Scrollbar */
-    ::-webkit-scrollbar {
-      width: 4px;
-    }
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #facc15;
-      border-radius: 10px;
-    }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #facc15; border-radius: 10px; }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.95); }
+    .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+
+    /* Verified Badge Glow */
+    .verified-glow {
+      filter: drop-shadow(0 0 5px rgba(250, 204, 21, 1));
     }
   </style>
 <script type="importmap">
@@ -153,12 +104,8 @@
 }
 </script>
 </head>
-
 <body class="honeycomb-bg">
-  <!-- React Mount Point -->
   <div id="root" class="h-full w-full"></div>
-  
-  <!-- The application entry point -->
   <script type="module" src="./index.tsx"></script>
 </body>
 </html>
