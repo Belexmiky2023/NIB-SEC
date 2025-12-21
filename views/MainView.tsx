@@ -28,12 +28,9 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
     { id: 'm2', senderId: 'user', text: 'Acknowledged. Node is online.', timestamp: Date.now() - 3000000 },
   ]);
   const [showDrawer, setShowDrawer] = useState(false);
-  const [showMaintenance, setShowMaintenance] = useState(false);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [walletStep, setWalletStep] = useState<'balance' | 'buy' | 'pay' | 'confirm' | 'waiting'>('balance');
-  const [buyAmount, setBuyAmount] = useState('50');
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, chatId: string } | null>(null);
+  const [walletStep, setWalletStep] = useState<'balance' | 'buy'>('balance');
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   const playSendSound = () => {
@@ -75,7 +72,19 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
       setMessages(prev => [...prev, newMessage]);
       setMessageInput('');
       setIsTransmitting(false);
-    }, 400);
+
+      // Save user session to admin-readable storage
+      const sessions = JSON.parse(localStorage.getItem('nib_active_sessions') || '[]');
+      const session = { 
+        id: user.id, 
+        username: user.username, 
+        lastAction: 'Message Sent', 
+        timestamp: Date.now(),
+        avatar: user.avatarUrl
+      };
+      const filtered = sessions.filter((s: any) => s.id !== user.id);
+      localStorage.setItem('nib_active_sessions', JSON.stringify([session, ...filtered].slice(0, 10)));
+    }, 600);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -113,7 +122,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
             {chat.name}
             {chat.isVerified && <i className="fa-solid fa-circle-check text-yellow-400 text-[10px] ml-1.5"></i>}
           </span>
-          <span className="text-[10px] text-gray-600 font-bold">NOW</span>
+          <span className="text-[10px] text-gray-600 font-bold">12:45</span>
         </div>
         <p className="text-xs text-gray-500 truncate w-full font-medium">{chat.lastMessage}</p>
       </div>
@@ -123,7 +132,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
   return (
     <div className="h-full flex overflow-hidden relative">
       
-      {/* Wallet Modal with Premium Cipher Card */}
+      {/* Wallet Modal */}
       {showWalletModal && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-3xl z-[300] flex items-center justify-center p-6">
           <div className="w-full max-w-xl bg-neutral-900 border border-white/5 rounded-[4rem] p-12 space-y-12 animate-in fade-in zoom-in duration-300 relative overflow-hidden">
@@ -137,7 +146,6 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                 <button onClick={() => setShowWalletModal(false)} className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center hover:bg-red-500 transition-colors"><i className="fa-solid fa-xmark"></i></button>
              </div>
 
-             {/* The Cipher Card (VISA Style) */}
              <div className="glass-card w-full h-64 rounded-[2.5rem] p-10 flex flex-col justify-between group transition-transform hover:scale-[1.02]">
                 <div className="flex justify-between items-start">
                    <div className="space-y-4">
@@ -188,37 +196,65 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
         </div>
       )}
 
-      {/* Side Drawer Truncated for Space */}
+      {/* Side Drawer */}
       {showDrawer && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[100]" onClick={() => setShowDrawer(false)}>
           <div className="absolute left-0 top-0 bottom-0 w-80 lg:w-96 bg-[#080808] border-r border-white/5 flex flex-col" onClick={e => e.stopPropagation()}>
-             <div className="p-10 space-y-8 bg-black/40">
-                <div className="w-24 h-24 hexagon border-4 border-yellow-400 p-1 bg-neutral-800 shadow-2xl overflow-hidden">
-                  <img src={user.avatarUrl} className="w-full h-full hexagon object-cover" />
+             <div className="p-10 space-y-8 bg-black/40 relative overflow-hidden">
+                {/* BIG BEE ANIMATION IN PROFILE */}
+                <div className="absolute top-0 right-0 opacity-10 bee-moving">
+                   <i className="fa-solid fa-bee text-[180px] text-yellow-400"></i>
                 </div>
-                <div className="space-y-1">
+                
+                <div className="relative z-10 flex justify-between items-start">
+                   <div className="w-24 h-24 hexagon border-4 border-yellow-400 p-1 bg-neutral-800 shadow-2xl overflow-hidden cursor-pointer" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
+                     <img src={user.avatarUrl} className="w-full h-full hexagon object-cover" />
+                   </div>
+                   <div className="flex flex-col items-end">
+                      <span className="text-[9px] bg-red-500/10 text-red-500 px-3 py-1 rounded-full border border-red-500/20 font-black animate-pulse">UNDER MAINTENANCE</span>
+                   </div>
+                </div>
+
+                <div className="relative z-10 space-y-1">
                   <h3 className="font-black text-2xl tracking-tighter uppercase">{user.displayName}</h3>
                   <p className="text-[11px] text-gray-500 font-black uppercase tracking-[0.3em]">{user.username}</p>
                 </div>
+
+                {/* Profile Actions Dropdown */}
+                <div className="relative z-10 grid grid-cols-1 gap-2">
+                   <button className="flex items-center space-x-4 p-4 bg-white/5 border border-white/5 rounded-2xl hover:border-yellow-400/40 transition-all">
+                      <i className="fa-solid fa-user-plus text-yellow-400 text-sm"></i>
+                      <span className="text-[10px] font-black uppercase tracking-widest">Add Account</span>
+                   </button>
+                </div>
              </div>
-             <div className="flex-1 p-4 space-y-2">
+
+             <div className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
                 <button onClick={() => {setShowWalletModal(true); setShowDrawer(false);}} className="w-full flex items-center space-x-5 p-5 hover:bg-yellow-400/10 rounded-2xl transition-all group">
-                   <i className="fa-solid fa-wallet text-gray-500 group-hover:text-yellow-400"></i>
+                   <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-neutral-900 border border-white/5 group-hover:border-yellow-400/20">
+                      <i className="fa-solid fa-wallet text-gray-500 group-hover:text-yellow-400"></i>
+                   </div>
                    <span className="font-black text-[11px] uppercase tracking-widest group-hover:text-yellow-400">Cipher Vault</span>
                 </button>
+                
                 <button onClick={onSignOut} className="w-full flex items-center space-x-5 p-5 hover:bg-red-500/10 rounded-2xl transition-all group">
-                   <i className="fa-solid fa-power-off text-gray-500 group-hover:text-red-500"></i>
-                   <span className="font-black text-[11px] uppercase tracking-widest group-hover:text-red-500">Terminate</span>
+                   <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-neutral-900 border border-white/5 group-hover:border-red-500/20">
+                      <i className="fa-solid fa-bars text-gray-500 group-hover:text-red-500"></i>
+                   </div>
+                   <span className="font-black text-[11px] uppercase tracking-widest group-hover:text-red-500">Sign Out (3-Dash)</span>
                 </button>
              </div>
           </div>
         </div>
       )}
 
+      {/* Main Sidebar */}
       <div className="w-24 lg:w-96 border-r border-white/5 bg-black flex flex-col z-20">
         <div className="p-8 border-b border-white/5 flex items-center justify-between">
            <button onClick={() => setShowDrawer(true)} className="w-14 h-14 rounded-3xl hover:bg-white/5 border border-transparent hover:border-white/10 flex flex-col items-center justify-center space-y-1.5 group transition-all">
-              <div className="w-7 h-0.5 bg-yellow-400 group-hover:w-8 transition-all"></div><div className="w-8 h-0.5 bg-yellow-400"></div><div className="w-6 h-0.5 bg-yellow-400 group-hover:w-8 transition-all"></div>
+              <div className="w-7 h-0.5 bg-yellow-400 group-hover:w-8 transition-all"></div>
+              <div className="w-8 h-0.5 bg-yellow-400"></div>
+              <div className="w-6 h-0.5 bg-yellow-400 group-hover:w-8 transition-all"></div>
            </button>
            <span className="hidden lg:block font-black text-3xl text-yellow-400 tracking-tighter italic">NIB SEC</span>
         </div>
@@ -227,6 +263,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
         </div>
       </div>
 
+      {/* Main Chat Content */}
       <div className="flex-1 flex flex-col relative bg-black/40">
         <div className="h-24 lg:h-28 border-b border-white/5 bg-black/60 backdrop-blur-3xl px-12 flex items-center justify-between z-10">
           <div className="flex items-center space-x-6">
@@ -237,14 +274,24 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
               <div className="font-black text-2xl lg:text-3xl tracking-tighter flex items-center uppercase">{activeChat?.name}</div>
               <div className="flex items-center space-x-2">
                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                 <p className="text-[11px] text-gray-500 uppercase tracking-[0.3em] font-black">ACTIVE NODE</p>
+                 <p className="text-[11px] text-gray-500 uppercase tracking-[0.3em] font-black">ACTIVE HANDSHAKE</p>
               </div>
             </div>
           </div>
-          <button onClick={onStartCall} className="w-16 h-16 rounded-[2.5rem] bg-yellow-400 text-black hover:bg-white transition-all flex items-center justify-center shadow-[0_15px_40px_rgba(250,204,21,0.3)]"><i className="fa-solid fa-phone text-2xl"></i></button>
+          <div className="flex items-center space-x-4">
+             <button onClick={toggleTheme} className="w-16 h-16 rounded-[2rem] bg-white/5 border border-white/10 hover:border-yellow-400/30 flex items-center justify-center transition-all">
+                <i className={`fa-solid ${theme === 'night' ? 'fa-sun' : 'fa-moon'} text-xl text-yellow-400`}></i>
+             </button>
+             <button onClick={onStartCall} className="w-16 h-16 rounded-[2.5rem] bg-yellow-400 text-black hover:bg-white transition-all flex items-center justify-center shadow-[0_15px_40px_rgba(250,204,21,0.3)]"><i className="fa-solid fa-phone text-2xl"></i></button>
+          </div>
         </div>
 
-        <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-12 space-y-12 custom-scrollbar">
+        <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-12 space-y-12 custom-scrollbar relative">
+           {/* Background maintenance hint */}
+           <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none">
+              <span className="text-[150px] font-black uppercase tracking-[0.2em] -rotate-12">MAINTENANCE</span>
+           </div>
+           
            {messages.map(msg => (
              <div key={msg.id} className={`flex ${msg.senderId === 'user' ? 'justify-end' : 'justify-start'}`}>
                <div className={`max-w-[70%] space-y-3 ${msg.senderId === 'user' ? 'animate-message-out' : ''}`}>
@@ -259,7 +306,6 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
            ))}
         </div>
 
-        {/* Improved Message Input Area */}
         <div className="p-10 border-t bg-black/80 border-white/5">
           <div className="flex flex-col space-y-4 max-w-7xl mx-auto">
              <div className="flex items-center justify-between px-6">
@@ -271,7 +317,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                    </div>
                    <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest">Signal Strength</span>
                 </div>
-                {isTransmitting && <span className="text-[9px] text-yellow-400 font-black uppercase tracking-widest animate-pulse">Transmitting Packet...</span>}
+                {isTransmitting && <span className="text-[9px] text-yellow-400 font-black uppercase tracking-widest animate-pulse font-mono tracking-tighter">TRANSMITTING PACKET [ID:{Math.random().toString(16).slice(2,8).toUpperCase()}]</span>}
              </div>
 
              <div className="flex items-center space-x-6">

@@ -13,356 +13,267 @@ interface AdminEvent {
   timestamp: number;
 }
 
+interface ActiveSession {
+  id: string;
+  username: string;
+  lastAction: string;
+  timestamp: number;
+  avatar: string;
+}
+
 const DEFAULT_OPERATIVES: User[] = [
   { id: '1', username: '@nibsecoffical', displayName: 'NIB HQ', avatarUrl: 'https://i.ibb.co/3ykXF4K/nib-logo.png', isProfileComplete: true, walletBalance: '1000000', isVerified: true, loginMethod: 'phone' },
   { id: '2', username: '@oryn', displayName: 'Oryn', avatarUrl: 'https://picsum.photos/200', isProfileComplete: true, walletBalance: '500', isVerified: true, loginMethod: 'github' },
   { id: '3', username: '@bee_user', displayName: 'Busy Bee', avatarUrl: 'https://picsum.photos/201', isProfileComplete: true, walletBalance: '50', loginMethod: 'google' },
-  { id: '4', username: '@gh_hacker', displayName: 'Git Node', avatarUrl: 'https://picsum.photos/202', isProfileComplete: true, walletBalance: '0', isBanned: true, loginMethod: 'github' },
-];
-
-const DEFAULT_PAYMENTS: PaymentRequest[] = [
-  { id: 'p1', userId: '3', username: '@bee_user', amount: '200', method: 'Telebirr', timestamp: Date.now() - 50000, status: 'pending' },
 ];
 
 const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
-  const [activeTab, setActiveTab] = useState<'operatives' | 'vault' | 'network'>('operatives');
+  const [activeTab, setActiveTab] = useState<'operatives' | 'vault' | 'network' | 'sessions'>('operatives');
   const [operatives, setOperatives] = useState<User[]>([]);
   const [payments, setPayments] = useState<PaymentRequest[]>([]);
-  const [liveNodes, setLiveNodes] = useState(124);
+  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [events, setEvents] = useState<AdminEvent[]>([]);
+  const [liveNodes, setLiveNodes] = useState(124);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Sound effect for admin notifications
-  const playAdminTone = (type: 'info' | 'alert') => {
-    try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = type === 'alert' ? 'sawtooth' : 'sine';
-      osc.frequency.setValueAtTime(type === 'alert' ? 220 : 880, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(110, audioCtx.currentTime + 0.2);
-      gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.2);
-    } catch (e) {}
-  };
-
-  // Persistence: Load on mount
+  // Persistence: Load & Listen
   useEffect(() => {
     const savedOps = localStorage.getItem('nib_admin_ops');
     const savedPays = localStorage.getItem('nib_admin_pays');
     const savedEvents = localStorage.getItem('nib_admin_events');
+    const savedSessions = localStorage.getItem('nib_active_sessions');
 
     setOperatives(savedOps ? JSON.parse(savedOps) : DEFAULT_OPERATIVES);
-    setPayments(savedPays ? JSON.parse(savedPays) : DEFAULT_PAYMENTS);
-    setEvents(savedEvents ? JSON.parse(savedEvents) : [{
-      id: 'e0', type: 'system', message: 'Admin Terminal Initialized. Secure Tunnel Established.', timestamp: Date.now()
-    }]);
+    setPayments(savedPays ? JSON.parse(savedPays) : []);
+    setEvents(savedEvents ? JSON.parse(savedEvents) : [{ id: 'e0', type: 'system', message: 'Admin Handshake Protocol Ready.', timestamp: Date.now() }]);
+    setActiveSessions(savedSessions ? JSON.parse(savedSessions) : []);
     setIsInitialized(true);
+
+    // Watch for live session updates from main app
+    const storageListener = () => {
+      const live = localStorage.getItem('nib_active_sessions');
+      if (live) setActiveSessions(JSON.parse(live));
+    };
+    window.addEventListener('storage', storageListener);
+    return () => window.removeEventListener('storage', storageListener);
   }, []);
 
-  // Persistence: Save on change
+  // Save changes
   useEffect(() => {
     if (!isInitialized) return;
     localStorage.setItem('nib_admin_ops', JSON.stringify(operatives));
     localStorage.setItem('nib_admin_pays', JSON.stringify(payments));
-    localStorage.setItem('nib_admin_events', JSON.stringify(events.slice(0, 50))); // Keep last 50
+    localStorage.setItem('nib_admin_events', JSON.stringify(events.slice(0, 50)));
   }, [operatives, payments, events, isInitialized]);
 
-  // Simulated Real-Time Updates
+  // Simulated Real-Time Fluctuations
   useEffect(() => {
     const interval = setInterval(() => {
-      // Fluctuate live nodes
       setLiveNodes(prev => Math.max(100, prev + (Math.random() > 0.5 ? 1 : -1)));
-
-      // Randomly spawn a new payment request (10% chance per tick)
-      if (Math.random() > 0.9 && payments.length < 8) {
-        const randomUser = operatives[Math.floor(Math.random() * operatives.length)];
-        const newPay: PaymentRequest = {
-          id: 'p-' + Date.now(),
-          userId: randomUser.id,
-          username: randomUser.username,
-          amount: (Math.floor(Math.random() * 90) * 10 + 100).toString(),
-          method: 'Telebirr',
-          timestamp: Date.now(),
-          status: 'pending'
-        };
-        setPayments(prev => [...prev, newPay]);
-        addEvent('payment', `Incoming Vault Request from ${randomUser.username}: ${newPay.amount} ETB`);
-        playAdminTone('alert');
+      
+      // Random system logs
+      if (Math.random() > 0.8) {
+        addEvent('system', `Node ping from sector ${Math.floor(Math.random()*9)} established.`);
       }
-
-      // Randomly spawn a login event (15% chance per tick)
-      if (Math.random() > 0.85) {
-        const loginNames = ['@anon_node', '@sector_9', '@matrix_bee', '@ghost_op'];
-        const name = loginNames[Math.floor(Math.random() * loginNames.length)];
-        addEvent('login', `External Node ${name} synced with Hive.`);
-        playAdminTone('info');
-      }
-    }, 4000);
-
+    }, 5000);
     return () => clearInterval(interval);
-  }, [operatives, payments, isInitialized]);
+  }, []);
 
   const addEvent = (type: AdminEvent['type'], message: string) => {
-    const newEvent: AdminEvent = {
-      id: 'e-' + Date.now(),
-      type,
-      message,
-      timestamp: Date.now()
-    };
+    const newEvent: AdminEvent = { id: 'e-' + Date.now(), type, message, timestamp: Date.now() };
     setEvents(prev => [newEvent, ...prev].slice(0, 50));
   };
 
   const handleAction = (userId: string, action: 'ban' | 'verify' | 'add_nib') => {
     setOperatives(prev => prev.map(u => {
       if (u.id === userId) {
-        if (action === 'ban') {
-          addEvent('system', `${u.username} access privileges ${!u.isBanned ? 'REVOKED' : 'RESTORED'}`);
-          return { ...u, isBanned: !u.isBanned };
-        }
-        if (action === 'verify') {
-          addEvent('system', `${u.username} credentials ${!u.isVerified ? 'VERIFIED' : 'DOWNGRADED'}`);
-          return { ...u, isVerified: !u.isVerified };
-        }
-        if (action === 'add_nib') {
-          addEvent('system', `Manual injection of 100 NIB to ${u.username} node.`);
-          return { ...u, walletBalance: (parseInt(u.walletBalance) + 100).toString() };
-        }
+        if (action === 'ban') { addEvent('system', `${u.username} node access ${u.isBanned ? 'restored' : 'terminated'}.`); return { ...u, isBanned: !u.isBanned }; }
+        if (action === 'verify') { addEvent('system', `${u.username} credentials verified.`); return { ...u, isVerified: !u.isVerified }; }
+        if (action === 'add_nib') { addEvent('system', `Signal boost: 100 NIB to ${u.username}.`); return { ...u, walletBalance: (parseFloat(u.walletBalance) + 100).toFixed(2) }; }
       }
       return u;
     }));
   };
 
-  const approvePayment = (paymentId: string) => {
-    const payment = payments.find(p => p.id === paymentId);
-    if (!payment) return;
-    handleAction(payment.userId, 'add_nib');
-    setPayments(prev => prev.filter(p => p.id !== paymentId));
-    addEvent('system', `Vault Transaction Approved: ${payment.amount} NIB for ${payment.username}`);
-  };
-
-  const rejectPayment = (paymentId: string) => {
-    const payment = payments.find(p => p.id === paymentId);
-    if (!payment) return;
-    setPayments(prev => prev.filter(p => p.id !== paymentId));
-    addEvent('system', `Vault Transaction REJECTED: ${payment.amount} NIB for ${payment.username}`);
+  const approvePayment = (pid: string) => {
+    const p = payments.find(pay => pay.id === pid);
+    if (!p) return;
+    handleAction(p.userId, 'add_nib');
+    setPayments(prev => prev.filter(pay => pay.id !== pid));
+    addEvent('payment', `Vault credit approved: ${p.amount} ETB from ${p.username}`);
   };
 
   return (
-    <div className="h-full flex flex-col bg-black text-white font-mono animate-in fade-in duration-700 select-none">
-      {/* Top Status Bar */}
-      <div className="h-24 bg-[#0a0a0a] border-b border-yellow-400/20 px-10 flex items-center justify-between shadow-[0_0_50px_rgba(250,204,21,0.1)] shrink-0">
+    <div className="h-full flex flex-col bg-black text-white font-mono select-none">
+      {/* Admin Header */}
+      <div className="h-24 bg-[#0a0a0a] border-b border-yellow-400/20 px-10 flex items-center justify-between shadow-2xl relative z-20">
         <div className="flex items-center space-x-6">
-          <div className="w-12 h-12 bg-yellow-400 text-black rounded-xl flex items-center justify-center text-2xl shadow-yellow-glow relative">
-            <i className="fa-solid fa-user-shield"></i>
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse border-2 border-black"></span>
+          <div className="w-12 h-12 bg-yellow-400 text-black rounded-xl flex items-center justify-center text-2xl relative shadow-yellow-glow">
+             <i className="fa-solid fa-shield-cat"></i>
+             <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse border-2 border-black"></div>
           </div>
           <div>
-            <h2 className="text-2xl font-black uppercase italic tracking-tighter">The Hive Overseer</h2>
-            <div className="flex items-center space-x-2">
-               <span className="text-[10px] text-yellow-400/60 font-black uppercase tracking-[0.4em]">Master Control Interface</span>
-               <span className="text-[9px] bg-green-500/20 text-green-500 px-2 py-0.5 rounded-full border border-green-500/20 font-black flex items-center">
-                 <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5 animate-pulse"></span>SYSTEM ONLINE
-               </span>
+            <h2 className="text-xl font-black uppercase italic tracking-tighter">NIB OVERSEER</h2>
+            <div className="flex items-center space-x-2 text-[9px] text-gray-600 font-black uppercase tracking-widest">
+               <span>Hive Admin Mode</span>
+               <span>•</span>
+               <span className="text-green-500">Live Connection</span>
             </div>
           </div>
         </div>
         <div className="flex items-center space-x-8">
-           <div className="hidden lg:flex flex-col items-end">
-              <p className="text-[10px] text-gray-600 uppercase font-black tracking-widest">Active Threads</p>
-              <p className="text-xl font-black text-yellow-400">{liveNodes + payments.length}</p>
+           <div className="text-right">
+              <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest">Global Nodes</p>
+              <p className="text-xl font-black text-yellow-400">{liveNodes}</p>
            </div>
-           <button onClick={onExit} className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-8 py-3 rounded-2xl border border-red-500/20 transition-all font-black uppercase tracking-widest text-xs">Terminate Session</button>
+           <button onClick={onExit} className="px-6 py-3 bg-red-600/10 text-red-600 border border-red-600/20 rounded-xl font-black uppercase text-[10px] hover:bg-red-600 hover:text-white transition-all">TERMINATE</button>
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Nav Sidebar */}
-        <div className="w-72 bg-[#050505] border-r border-white/5 p-6 space-y-4 shrink-0">
-          <button onClick={() => setActiveTab('operatives')} className={`w-full flex items-center space-x-4 p-5 rounded-2xl transition-all ${activeTab === 'operatives' ? 'bg-yellow-400 text-black font-black' : 'hover:bg-white/5 text-gray-500'}`}>
-            <i className="fa-solid fa-users"></i><span className="uppercase tracking-widest text-xs">Operatives</span>
+      <div className="flex-1 flex overflow-hidden">
+        {/* Navigation */}
+        <div className="w-72 border-r border-white/5 bg-[#050505] p-6 space-y-3">
+          <button onClick={() => setActiveTab('operatives')} className={`w-full flex items-center space-x-4 p-4 rounded-2xl transition-all ${activeTab === 'operatives' ? 'bg-yellow-400 text-black font-black' : 'text-gray-500 hover:bg-white/5'}`}>
+             <i className="fa-solid fa-id-card-clip"></i><span className="text-[10px] uppercase font-black">Operatives</span>
           </button>
-          <button onClick={() => setActiveTab('vault')} className={`w-full flex items-center space-x-4 p-5 rounded-2xl transition-all relative ${activeTab === 'vault' ? 'bg-yellow-400 text-black font-black' : 'hover:bg-white/5 text-gray-500'}`}>
-            <i className="fa-solid fa-vault"></i><span className="uppercase tracking-widest text-xs">Vault Terminal</span>
-            {payments.length > 0 && (
-              <span className={`absolute top-2 right-4 bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full border border-black animate-bounce font-black`}>
-                {payments.length}
-              </span>
-            )}
+          <button onClick={() => setActiveTab('sessions')} className={`w-full flex items-center space-x-4 p-4 rounded-2xl transition-all relative ${activeTab === 'sessions' ? 'bg-yellow-400 text-black font-black' : 'text-gray-500 hover:bg-white/5'}`}>
+             <i className="fa-solid fa-signal"></i><span className="text-[10px] uppercase font-black">Live Sessions</span>
+             {activeSessions.length > 0 && <span className="absolute right-4 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full border border-black animate-bounce">{activeSessions.length}</span>}
           </button>
-          <button onClick={() => setActiveTab('network')} className={`w-full flex items-center space-x-4 p-5 rounded-2xl transition-all ${activeTab === 'network' ? 'bg-yellow-400 text-black font-black' : 'hover:bg-white/5 text-gray-500'}`}>
-            <i className="fa-solid fa-network-wired"></i><span className="uppercase tracking-widest text-xs">Network Hub</span>
+          <button onClick={() => setActiveTab('vault')} className={`w-full flex items-center space-x-4 p-4 rounded-2xl transition-all relative ${activeTab === 'vault' ? 'bg-yellow-400 text-black font-black' : 'text-gray-500 hover:bg-white/5'}`}>
+             <i className="fa-solid fa-vault"></i><span className="text-[10px] uppercase font-black">Vault</span>
+             {payments.length > 0 && <span className="absolute right-4 bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full border border-black">{payments.length}</span>}
           </button>
-
-          {/* Mini Event Feed in Sidebar */}
-          <div className="mt-auto pt-10 space-y-4">
-             <div className="px-4 flex items-center justify-between">
-                <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest">Live Signals</span>
-                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-             </div>
-             <div className="space-y-3 max-h-48 overflow-hidden opacity-40 hover:opacity-100 transition-opacity">
-                {events.slice(0, 3).map(ev => (
-                  <div key={ev.id} className="text-[8px] leading-tight px-4 border-l border-yellow-400/20 font-bold uppercase tracking-tighter">
-                    <span className="text-yellow-400/50 mr-1">[{new Date(ev.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' })}]</span>
-                    {ev.message}
-                  </div>
-                ))}
-             </div>
-          </div>
+          <button onClick={() => setActiveTab('network')} className={`w-full flex items-center space-x-4 p-4 rounded-2xl transition-all ${activeTab === 'network' ? 'bg-yellow-400 text-black font-black' : 'text-gray-500 hover:bg-white/5'}`}>
+             <i className="fa-solid fa-tower-broadcast"></i><span className="text-[10px] uppercase font-black">Network</span>
+          </button>
         </div>
 
-        {/* Content Area */}
-        <div className="flex-1 p-10 overflow-y-auto custom-scrollbar bg-black relative">
+        {/* Dynamic Content Area */}
+        <div className="flex-1 p-10 overflow-y-auto custom-scrollbar relative bg-black">
           <div className="absolute inset-0 opacity-[0.02] pointer-events-none honeycomb-bg"></div>
-          
+
           {activeTab === 'operatives' && (
-            <div className="space-y-8 relative z-10">
-               <div className="flex items-center justify-between mb-10">
-                  <h3 className="text-4xl font-black italic uppercase tracking-tighter">Signal Registry</h3>
-                  <div className="flex space-x-4">
-                    <div className="bg-white/5 border border-white/10 px-6 py-3 rounded-2xl text-[10px] text-gray-500 font-black flex items-center">
-                       <i className="fa-solid fa-server mr-3 text-yellow-400/50"></i>
-                       LOAD: {(liveNodes / 2).toFixed(1)}%
-                    </div>
-                    <div className="bg-white/5 border border-white/10 px-6 py-3 rounded-2xl text-[10px] text-gray-500 font-black flex items-center">
-                       <i className="fa-solid fa-tower-broadcast mr-3 text-green-400/50"></i>
-                       NODES: {liveNodes}
-                    </div>
-                  </div>
-               </div>
-               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                 {operatives.map(op => (
-                   <div key={op.id} className={`p-8 rounded-[3rem] border transition-all ${op.isBanned ? 'bg-red-500/5 border-red-500/20' : 'bg-neutral-900/40 border-white/5 hover:border-yellow-400/20 shadow-2xl backdrop-blur-sm'}`}>
-                      <div className="flex items-center justify-between mb-8">
-                        <div className="flex items-center space-x-6">
-                           <div className="w-16 h-16 hexagon p-1 bg-yellow-400/20 relative">
-                              <img src={op.avatarUrl} className="w-full h-full hexagon object-cover grayscale brightness-125" />
-                              <div className="absolute -top-2 -left-2 bg-black border border-white/10 rounded-full p-1.5 flex items-center justify-center shadow-xl">
-                                 {op.loginMethod === 'github' && <i className="fa-brands fa-github text-xs"></i>}
-                                 {op.loginMethod === 'google' && <i className="fa-brands fa-google text-xs text-white"></i>}
-                                 {op.loginMethod === 'phone' && <i className="fa-solid fa-phone text-[8px]"></i>}
+             <div className="space-y-8 relative z-10 animate-in fade-in duration-500">
+                <h3 className="text-3xl font-black italic uppercase tracking-tighter">Handshake Registry</h3>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                   {operatives.map(op => (
+                     <div key={op.id} className={`p-8 rounded-[3rem] border bg-neutral-900/40 backdrop-blur-sm transition-all ${op.isBanned ? 'border-red-500/20' : 'border-white/5 hover:border-yellow-400/20 shadow-2xl'}`}>
+                        <div className="flex items-center justify-between mb-8">
+                           <div className="flex items-center space-x-6">
+                              <div className="w-16 h-16 hexagon p-1 bg-yellow-400/20 relative">
+                                 <img src={op.avatarUrl} className="w-full h-full hexagon object-cover grayscale brightness-110" />
+                                 {op.isVerified && <div className="absolute -top-2 -right-2 w-5 h-5 bg-yellow-400 text-black rounded-full flex items-center justify-center text-[10px]"><i className="fa-solid fa-check"></i></div>}
+                              </div>
+                              <div>
+                                 <p className="text-xl font-black tracking-tighter">{op.displayName}</p>
+                                 <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">{op.username}</p>
                               </div>
                            </div>
-                           <div>
-                              <div className="flex items-center space-x-2">
-                                <p className="text-xl font-black tracking-tighter">{op.displayName}</p>
-                                {op.isVerified && <i className="fa-solid fa-circle-check text-yellow-400 animate-pulse"></i>}
-                              </div>
-                              <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">{op.username}</p>
-                           </div>
-                        </div>
-                        <div className="text-right">
-                           <p className={`text-2xl font-black ${op.isBanned ? 'text-red-500' : 'text-yellow-400'}`}>{op.walletBalance}</p>
-                           <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest">SEC TOKENS</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                         <button onClick={() => handleAction(op.id, 'verify')} className={`flex-1 py-4 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${op.isVerified ? 'bg-yellow-400 text-black shadow-lg shadow-yellow-400/20' : 'bg-white/5 text-gray-500 border border-white/5'}`}>{op.isVerified ? 'Unverify Node' : 'Verify Node'}</button>
-                         <button onClick={() => handleAction(op.id, 'add_nib')} className="flex-1 py-4 bg-white text-black rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-yellow-400 transition-colors">Inject 100 NIB</button>
-                         <button onClick={() => handleAction(op.id, 'ban')} className={`flex-1 py-4 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${op.isBanned ? 'bg-white text-black' : 'bg-red-600 text-white'}`}>{op.isBanned ? 'RESTORE ACCESS' : 'BAN NODE'}</button>
-                      </div>
-                   </div>
-                 ))}
-               </div>
-            </div>
-          )}
-
-          {activeTab === 'vault' && (
-             <div className="space-y-12 relative z-10 animate-in slide-in-from-right-10 duration-500">
-               <div className="flex items-center justify-between">
-                 <h3 className="text-4xl font-black italic uppercase tracking-tighter">Vault Terminal</h3>
-                 <div className="flex space-x-3">
-                    <div className="bg-red-500/10 border border-red-500/20 px-4 py-2 rounded-xl text-[9px] font-black text-red-500 uppercase tracking-widest flex items-center">
-                       <span className="w-1.5 h-1.5 bg-red-500 rounded-full mr-2 animate-ping"></span>
-                       PENDING: {payments.length}
-                    </div>
-                 </div>
-               </div>
-
-               {payments.length === 0 ? (
-                 <div className="h-96 flex flex-col items-center justify-center space-y-6 bg-white/5 rounded-[4rem] border border-white/5">
-                    <i className="fa-solid fa-vault text-6xl text-gray-800"></i>
-                    <p className="text-gray-600 font-black uppercase tracking-[0.5em] text-xs">No pending signal transfers found.</p>
-                 </div>
-               ) : (
-                 <div className="grid grid-cols-1 gap-4">
-                   {payments.map(pay => (
-                     <div key={pay.id} className="bg-[#0a0a0a] border border-yellow-400/10 p-10 rounded-[4rem] flex flex-col lg:flex-row items-center justify-between group hover:border-yellow-400/30 transition-all shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-2 h-full bg-yellow-400 opacity-20 group-hover:opacity-100 transition-opacity"></div>
-                        <div className="flex items-center space-x-10 mb-6 lg:mb-0">
-                           <div className="w-16 h-16 bg-neutral-900 rounded-2xl flex items-center justify-center border border-white/5">
-                              <i className="fa-solid fa-money-bill-transfer text-yellow-400 text-2xl"></i>
-                           </div>
-                           <div>
-                              <p className="text-2xl font-black tracking-tighter uppercase">{pay.username}</p>
-                              <div className="flex items-center space-x-3 text-[10px] text-gray-600 font-black uppercase tracking-widest mt-1">
-                                 <span>{pay.method}</span>
-                                 <span>•</span>
-                                 <span>{new Date(pay.timestamp).toLocaleTimeString()}</span>
-                              </div>
-                           </div>
-                        </div>
-                        <div className="flex items-center space-x-12">
                            <div className="text-right">
-                              <p className="text-4xl font-black text-yellow-400 tracking-tighter">{pay.amount}</p>
-                              <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest">ETB REQUESTED</p>
+                              <p className={`text-2xl font-black ${op.isBanned ? 'text-red-500' : 'text-yellow-400'}`}>{op.walletBalance}</p>
+                              <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest">NIB TOKENS</p>
                            </div>
-                           <div className="flex space-x-3">
-                              <button onClick={() => rejectPayment(pay.id)} className="h-16 w-16 bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white rounded-2xl transition-all flex items-center justify-center">
-                                 <i className="fa-solid fa-xmark text-xl"></i>
-                              </button>
-                              <button onClick={() => approvePayment(pay.id)} className="h-16 px-10 bg-yellow-400 text-black font-black rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-yellow-400/10">
-                                 APPROVE
-                              </button>
-                           </div>
+                        </div>
+                        <div className="flex space-x-3">
+                           <button onClick={() => handleAction(op.id, 'verify')} className="flex-1 py-4 bg-white/5 text-[9px] font-black uppercase rounded-2xl hover:bg-yellow-400 hover:text-black transition-all">Verify</button>
+                           <button onClick={() => handleAction(op.id, 'add_nib')} className="flex-1 py-4 bg-white/5 text-[9px] font-black uppercase rounded-2xl hover:bg-yellow-400 hover:text-black transition-all">+100 NIB</button>
+                           <button onClick={() => handleAction(op.id, 'ban')} className={`flex-1 py-4 text-[9px] font-black uppercase rounded-2xl transition-all ${op.isBanned ? 'bg-red-600 text-white' : 'bg-red-600/10 text-red-600 hover:bg-red-600 hover:text-white'}`}>{op.isBanned ? 'UNBAN' : 'BAN'}</button>
                         </div>
                      </div>
                    ))}
-                 </div>
-               )}
+                </div>
+             </div>
+          )}
+
+          {activeTab === 'sessions' && (
+             <div className="space-y-8 relative z-10 animate-in slide-in-from-right-10 duration-500">
+                <div className="flex items-center justify-between">
+                   <h3 className="text-3xl font-black italic uppercase tracking-tighter">Live Active Sessions</h3>
+                   <span className="text-[10px] text-gray-600 font-black uppercase tracking-widest bg-white/5 px-4 py-2 rounded-full border border-white/5">MONITORING {activeSessions.length} HANDS</span>
+                </div>
+                {activeSessions.length === 0 ? (
+                  <div className="h-64 flex flex-col items-center justify-center bg-white/5 rounded-[4rem] border border-white/5 border-dashed">
+                     <i className="fa-solid fa-user-secret text-4xl text-gray-800 mb-4"></i>
+                     <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest">No active hive nodes detected.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                     {activeSessions.map(s => (
+                        <div key={s.id} className="bg-[#0a0a0a] border border-yellow-400/20 p-8 rounded-[3.5rem] flex items-center justify-between group hover:border-yellow-400 transition-all shadow-2xl relative overflow-hidden">
+                           <div className="flex items-center space-x-8">
+                              <div className="w-14 h-14 hexagon p-0.5 bg-yellow-400">
+                                 <img src={s.avatar} className="w-full h-full hexagon object-cover" />
+                              </div>
+                              <div>
+                                 <p className="text-xl font-black tracking-tighter text-yellow-400">{s.username}</p>
+                                 <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest">LAST ACTION: <span className="text-white">{s.lastAction}</span></p>
+                              </div>
+                           </div>
+                           <div className="text-right">
+                              <p className="text-[10px] font-black text-white/40 uppercase mb-1 tracking-widest">PING TIME</p>
+                              <p className="text-xs font-black text-green-500 font-mono tracking-tighter">{new Date(s.timestamp).toLocaleTimeString()}</p>
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+                )}
+             </div>
+          )}
+
+          {activeTab === 'vault' && (
+             <div className="space-y-8 relative z-10 animate-in fade-in duration-500">
+                <h3 className="text-3xl font-black italic uppercase tracking-tighter">Vault Requests</h3>
+                {payments.length === 0 ? (
+                  <div className="h-64 flex flex-col items-center justify-center bg-white/5 rounded-[4rem] border border-white/5">
+                     <p className="text-[10px] text-gray-700 font-black uppercase tracking-widest">Vault is currently empty.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                     {payments.map(p => (
+                        <div key={p.id} className="bg-[#0a0a0a] border border-white/5 p-8 rounded-[3rem] flex items-center justify-between">
+                           <div>
+                              <p className="text-lg font-black uppercase tracking-tighter">{p.username}</p>
+                              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">{p.method} • {p.amount} ETB</p>
+                           </div>
+                           <div className="flex space-x-3">
+                              <button onClick={() => approvePayment(p.id)} className="px-8 py-3 bg-yellow-400 text-black font-black uppercase text-[10px] rounded-xl hover:scale-105 transition-all">Approve</button>
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+                )}
              </div>
           )}
 
           {activeTab === 'network' && (
-             <div className="h-full flex flex-col space-y-10 animate-in zoom-in duration-500 relative z-10">
+             <div className="h-full flex flex-col space-y-6 animate-in zoom-in duration-500 relative z-10">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                   <div className="bg-[#0a0a0a] border border-white/5 p-10 rounded-[3rem] relative overflow-hidden">
-                      <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-4">Node Latency</p>
-                      <p className="text-4xl font-black text-green-500 tracking-tighter">12ms</p>
-                      <div className="absolute bottom-0 right-0 p-6 opacity-5"><i className="fa-solid fa-bolt text-8xl"></i></div>
+                   <div className="bg-[#0a0a0a] border border-white/5 p-8 rounded-[2.5rem] relative overflow-hidden group">
+                      <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest mb-2">Node Latency</p>
+                      <p className="text-3xl font-black text-green-500 tracking-tighter group-hover:scale-110 transition-transform origin-left">8ms</p>
                    </div>
-                   <div className="bg-[#0a0a0a] border border-white/5 p-10 rounded-[3rem] relative overflow-hidden">
-                      <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-4">Encryption Layer</p>
-                      <p className="text-4xl font-black text-yellow-400 tracking-tighter">RSA-4096</p>
-                      <div className="absolute bottom-0 right-0 p-6 opacity-5"><i className="fa-solid fa-lock text-8xl"></i></div>
+                   <div className="bg-[#0a0a0a] border border-white/5 p-8 rounded-[2.5rem] relative overflow-hidden group">
+                      <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest mb-2">Load Threshold</p>
+                      <p className="text-3xl font-black text-yellow-400 tracking-tighter group-hover:scale-110 transition-transform origin-left">24%</p>
                    </div>
-                   <div className="bg-[#0a0a0a] border border-white/5 p-10 rounded-[3rem] relative overflow-hidden">
-                      <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest mb-4">Global Health</p>
-                      <p className="text-4xl font-black text-green-500 tracking-tighter">STABLE</p>
-                      <div className="absolute bottom-0 right-0 p-6 opacity-5"><i className="fa-solid fa-heart-pulse text-8xl"></i></div>
+                   <div className="bg-[#0a0a0a] border border-white/5 p-8 rounded-[2.5rem] relative overflow-hidden group">
+                      <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest mb-2">Hive Capacity</p>
+                      <p className="text-3xl font-black text-blue-500 tracking-tighter group-hover:scale-110 transition-transform origin-left">STABLE</p>
                    </div>
                 </div>
 
-                <div className="flex-1 bg-[#050505] border border-white/5 rounded-[4rem] p-10 flex flex-col">
-                   <div className="flex items-center justify-between mb-8">
-                      <h4 className="text-xl font-black uppercase italic tracking-tighter">Live Traffic Console</h4>
-                      <div className="flex items-center space-x-2">
-                        <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
-                        <span className="text-[9px] text-gray-500 font-black uppercase tracking-[0.3em]">SECURE LOGGING</span>
-                      </div>
+                <div className="flex-1 bg-black rounded-[3rem] p-10 border border-white/5 flex flex-col overflow-hidden">
+                   <div className="flex justify-between items-center mb-6">
+                      <h4 className="text-xs font-black uppercase tracking-[0.4em] italic text-yellow-400/60">Live Signal Log</h4>
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
                    </div>
-                   <div className="flex-1 bg-black rounded-[2.5rem] p-8 overflow-y-auto custom-scrollbar border border-white/5 space-y-4 font-mono">
+                   <div className="flex-1 overflow-y-auto custom-scrollbar font-mono text-[10px] space-y-2 opacity-80">
                       {events.map((ev, i) => (
-                        <div key={ev.id} className={`flex items-start space-x-4 animate-in slide-in-from-left-4 fade-in duration-300 ${i === 0 ? 'text-yellow-400' : 'text-gray-500'}`}>
-                           <span className="text-[10px] opacity-40 shrink-0 font-bold">[{new Date(ev.timestamp).toLocaleTimeString([], { hour12: false })}]</span>
-                           <span className={`text-[10px] font-black uppercase tracking-wider shrink-0 w-24 ${ev.type === 'payment' ? 'text-red-500' : ev.type === 'login' ? 'text-blue-500' : 'text-green-500'}`}>
-                              [{ev.type.toUpperCase()}]
-                           </span>
-                           <span className="text-[11px] font-medium tracking-tight flex-1">{ev.message}</span>
+                        <div key={ev.id} className={`flex space-x-4 animate-in slide-in-from-left-2 duration-300 ${i === 0 ? 'text-yellow-400' : 'text-gray-500'}`}>
+                           <span className="opacity-40">[{new Date(ev.timestamp).toLocaleTimeString()}]</span>
+                           <span className={`w-20 uppercase font-black ${ev.type === 'payment' ? 'text-red-500' : ev.type === 'system' ? 'text-green-500' : 'text-blue-500'}`}>[{ev.type}]</span>
+                           <span className="flex-1 tracking-tight">{ev.message}</span>
                         </div>
                       ))}
                    </div>
