@@ -27,15 +27,15 @@ const App: React.FC = () => {
 
     if (savedTheme) setTheme(savedTheme as Theme);
     
-    // Handle OAuth Callbacks first
+    // Check for OAuth codes in URL
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const path = window.location.pathname;
 
     if (code) {
-      // If we have a code and we are on the callback path or home
-      const method = path.includes('callback') || params.has('scope') ? 'google' : 'github';
-      handleOAuthExchange(code, method);
+      // Determine method based on path or scope param
+      const isGoogle = path.includes('callback') || params.has('scope');
+      handleOAuthExchange(code, isGoogle ? 'google' : 'github');
     } else if (savedUser && savedState) {
       const parsedUser = JSON.parse(savedUser);
       if (['MAIN', 'ADMIN', 'SETUP'].includes(savedState)) {
@@ -47,7 +47,7 @@ const App: React.FC = () => {
     setIsInitialized(true);
   }, []);
 
-  // Save to LocalStorage
+  // Save state changes to LocalStorage
   useEffect(() => {
     if (!isInitialized) return;
 
@@ -66,26 +66,30 @@ const App: React.FC = () => {
     setAppState('LOADING');
     try {
       if (method === 'google') {
-        // Call the Cloudflare Function to exchange the code
+        // Secure server-side exchange
         const response = await fetch('/api/google-auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code }),
         });
         
-        if (!response.ok) throw new Error('Failed to exchange Google code');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to exchange Google code');
+        }
         
         const data = await response.json();
         handleOAuthSuccess('google', data);
       } else {
-        // Existing mock for GitHub
+        // GitHub flow (currently mock, can be expanded to a function similar to google-auth)
         handleOAuthSuccess('github');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('OAuth Error:', error);
+      alert(`Authentication error: ${error.message}`);
       setAppState('LOGIN');
-      alert('Authentication failed. Please try again.');
     } finally {
+      // Clean up the URL
       window.history.replaceState({}, document.title, window.location.origin);
     }
   };
@@ -111,6 +115,7 @@ const App: React.FC = () => {
       const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email`;
       window.location.href = githubAuthUrl;
     } else if (method === 'google') {
+      // Redirect to Google's OAuth 2.0 endpoint
       const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}&response_type=code&scope=openid%20profile%20email&access_type=online`;
       window.location.href = googleAuthUrl;
     } else {
