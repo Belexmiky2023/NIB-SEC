@@ -71,6 +71,19 @@
       100% { transform: translate(0, 0) rotate(360deg); }
     }
 
+    /* Floating Bee with Honey Bar */
+    .bee-with-bar {
+      animation: drift-bee 12s infinite ease-in-out;
+      filter: drop-shadow(0 0 15px rgba(250, 204, 21, 0.4));
+    }
+
+    @keyframes drift-bee {
+      0%, 100% { transform: translate(0, 0) rotate(5deg); }
+      25% { transform: translate(20px, -30px) rotate(-5deg); }
+      50% { transform: translate(-20px, 10px) rotate(3deg); }
+      75% { transform: translate(10px, -15px) rotate(-3deg); }
+    }
+
     /* Message Send Animation */
     @keyframes message-up {
       0% { opacity: 0; transform: translateY(10px) scale(0.98); }
@@ -90,6 +103,20 @@
     /* Verified Badge Glow */
     .verified-glow {
       filter: drop-shadow(0 0 5px rgba(250, 204, 21, 1));
+    }
+
+    /* Hive Pulse Animation */
+    @keyframes hive-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.4); }
+      70% { box-shadow: 0 0 0 20px rgba(250, 204, 21, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
+    }
+    .pulse-yellow {
+      animation: hive-pulse 2s infinite;
+    }
+    
+    .login-card-shadow {
+       box-shadow: 0 30px 100px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.05);
     }
   </style>
 <script type="importmap">

@@ -9,10 +9,9 @@ const CallingView: React.FC<CallingViewProps> = ({ onEndCall }) => {
   const [callDuration, setCallDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [videoEnabled, setVideoEnabled] = useState(true);
-  const [isPresenting, setIsPresenting] = useState(false);
-  const [isHandRaised, setIsHandRaised] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [permissionStatus, setPermissionStatus] = useState<'requesting' | 'granted' | 'denied'>('requesting');
+  const [currentTime, setCurrentTime] = useState(new Date());
+  
   const streamRef = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -64,143 +63,144 @@ const CallingView: React.FC<CallingViewProps> = ({ onEndCall }) => {
     }
   }, [videoEnabled]);
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
-    <div className="fixed inset-0 bg-[#0a0a0a] z-50 flex flex-col font-sans select-none overflow-hidden">
+    <div className="fixed inset-0 bg-black z-[1000] flex flex-col font-sans select-none overflow-hidden honeycomb-bg">
       
-      {/* Participant Grid (Main View) */}
-      <div className="flex-1 relative p-4 lg:p-6 grid grid-cols-1 gap-4 items-center justify-center">
-        <div className="relative w-full h-full max-w-6xl mx-auto bg-neutral-900/50 rounded-2xl overflow-hidden shadow-2xl border border-white/5">
-          {permissionStatus === 'granted' && videoEnabled ? (
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              muted 
-              playsInline 
-              className="w-full h-full object-cover scale-x-[-1]"
-            />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center space-y-6 bg-black">
-               <div className="w-32 h-32 lg:w-48 lg:h-48 rounded-full bg-neutral-800 flex items-center justify-center text-5xl font-black text-yellow-400 border-4 border-yellow-400/20 shadow-[0_0_50px_rgba(250,204,21,0.1)]">
-                  N
-               </div>
-               <p className="text-gray-500 font-black uppercase tracking-[0.3em] text-xs">Video Terminal Offline</p>
-            </div>
-          )}
-          
-          {/* Participant Name Label (Bottom Left of Video) */}
-          <div className="absolute bottom-6 left-6 flex items-center space-x-3 bg-black/40 backdrop-blur-md px-4 py-2 rounded-lg border border-white/10">
-             <i className="fa-solid fa-microphone-slash text-red-500 text-xs"></i>
-             <span className="text-xs font-bold text-white uppercase tracking-wider">Operative (You)</span>
-          </div>
-
-          {/* Secure Handshake Indicator (Top Right) */}
-          <div className="absolute top-6 right-6">
-             <div className="flex items-center space-x-3 bg-yellow-400 text-black px-4 py-1.5 rounded-full shadow-lg">
-                <span className="relative flex h-2 w-2">
-                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-black opacity-75"></span>
-                   <span className="relative inline-flex rounded-full h-2 w-2 bg-black"></span>
-                </span>
-                <span className="text-[10px] font-black uppercase tracking-widest">E2EE ACTIVE</span>
-             </div>
-          </div>
-        </div>
+      {/* BACKGROUND DECOR */}
+      <div className="absolute inset-0 pointer-events-none opacity-20">
+         <div className="bee-flight absolute top-1/4 left-1/4 w-32 h-32 opacity-10">
+            <i className="fa-solid fa-bee text-yellow-400 text-6xl"></i>
+         </div>
       </div>
 
-      {/* Bottom Bar Container */}
-      <div className="h-24 px-8 flex items-center justify-between z-20">
-        
-        {/* Left Side: Time & Meeting ID */}
-        <div className="flex items-center space-x-4 min-w-[240px]">
-           <div className="text-sm font-bold text-white/90">
-             {formatTime(currentTime)} | <span className="font-mono text-gray-400 lowercase tracking-tight">nib-sec-hq-01</span>
+      {/* HEADER: CALL INFO */}
+      <div className="h-20 px-10 flex items-center justify-between relative z-50 bg-gradient-to-b from-black/80 to-transparent">
+        <div className="flex items-center space-x-6">
+           <div className="w-12 h-12 hexagon bg-yellow-400 flex items-center justify-center text-black shadow-[0_0_20px_rgba(250,204,21,0.4)]">
+              <i className="fa-solid fa-shield-halved text-lg"></i>
+           </div>
+           <div>
+              <h2 className="text-sm font-black uppercase italic tracking-tighter text-white">Secure Tunnel #HQ-01</h2>
+              <div className="flex items-center space-x-2">
+                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                 <p className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">Encryption Active</p>
+              </div>
            </div>
         </div>
-
-        {/* Center: Controls (Google Meet Style) */}
-        <div className="flex items-center space-x-3">
-           {/* Mic */}
-           <button 
-             onClick={() => setIsMuted(!isMuted)}
-             className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${isMuted ? 'bg-red-500 text-white' : 'bg-neutral-800 text-white hover:bg-neutral-700'}`}
-           >
-             <i className={`fa-solid ${isMuted ? 'fa-microphone-slash' : 'fa-microphone'}`}></i>
-           </button>
-
-           {/* Video */}
-           <button 
-             onClick={() => setVideoEnabled(!videoEnabled)}
-             className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${!videoEnabled ? 'bg-red-500 text-white' : 'bg-neutral-800 text-white hover:bg-neutral-700'}`}
-           >
-             <i className={`fa-solid ${videoEnabled ? 'fa-video' : 'fa-video-slash'}`}></i>
-           </button>
-
-           {/* Captions */}
-           <button className="w-11 h-11 rounded-full bg-neutral-800 text-white hover:bg-neutral-700 flex items-center justify-center transition-all">
-             <i className="fa-solid fa-closed-captioning"></i>
-           </button>
-
-           {/* Reactions */}
-           <button className="w-11 h-11 rounded-full bg-neutral-800 text-white hover:bg-neutral-700 flex items-center justify-center transition-all">
-             <i className="fa-regular fa-face-smile"></i>
-           </button>
-
-           {/* Present */}
-           <button 
-             onClick={() => setIsPresenting(!isPresenting)}
-             className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${isPresenting ? 'bg-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.4)]' : 'bg-neutral-800 text-white hover:bg-neutral-700'}`}
-           >
-             <i className="fa-solid fa-arrow-up-from-bracket"></i>
-           </button>
-
-           {/* Raise Hand */}
-           <button 
-             onClick={() => setIsHandRaised(!isHandRaised)}
-             className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${isHandRaised ? 'bg-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.4)]' : 'bg-neutral-800 text-white hover:bg-neutral-700'}`}
-           >
-             <i className="fa-solid fa-hand"></i>
-           </button>
-
-           {/* More Options */}
-           <button className="w-11 h-11 rounded-full bg-neutral-800 text-white hover:bg-neutral-700 flex items-center justify-center transition-all">
-             <i className="fa-solid fa-ellipsis-vertical"></i>
-           </button>
-
-           {/* End Call (Red) */}
-           <button 
-             onClick={onEndCall}
-             className="w-14 h-11 bg-red-600 hover:bg-red-500 text-white rounded-[2rem] flex items-center justify-center transition-all ml-4"
-           >
-             <i className="fa-solid fa-phone-flip rotate-[135deg] text-xl"></i>
-           </button>
+        <div className="text-center">
+           <p className="text-2xl font-black text-yellow-400 font-mono tracking-tighter drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]">
+              {formatDuration(callDuration)}
+           </p>
         </div>
-
-        {/* Right Side: Utilities */}
-        <div className="flex items-center space-x-2 min-w-[240px] justify-end">
-           <button className="w-10 h-10 flex items-center justify-center text-white/60 hover:text-yellow-400 hover:bg-white/5 rounded-full transition-all">
-              <i className="fa-solid fa-circle-info"></i>
-           </button>
-           <button className="w-10 h-10 flex items-center justify-center text-white/60 hover:text-yellow-400 hover:bg-white/5 rounded-full transition-all">
-              <i className="fa-solid fa-user-group text-sm"></i>
-           </button>
-           <button className="w-10 h-10 flex items-center justify-center text-white/60 hover:text-yellow-400 hover:bg-white/5 rounded-full transition-all">
-              <i className="fa-solid fa-message text-sm"></i>
-           </button>
-           <button className="w-10 h-10 flex items-center justify-center text-white/60 hover:text-yellow-400 hover:bg-white/5 rounded-full transition-all">
-              <i className="fa-solid fa-shapes text-sm"></i>
-           </button>
-           <button className="w-10 h-10 flex items-center justify-center text-white/60 hover:text-yellow-400 hover:bg-white/5 rounded-full transition-all">
-              <i className="fa-solid fa-lock text-sm"></i>
-           </button>
+        <div className="text-right">
+           <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest">{currentTime.toLocaleTimeString([], { hour12: false })}</p>
+           <p className="text-[10px] text-yellow-400/40 font-black uppercase tracking-widest">NIB SEC NETWORK</p>
         </div>
       </div>
 
-      {/* Background Ambience */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-10">
-         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-yellow-400 rounded-full blur-[200px] opacity-20"></div>
+      {/* MAIN VIEWPORT */}
+      <div className="flex-1 relative p-10 flex items-center justify-center">
+        <div className="relative w-full h-full max-w-5xl bg-neutral-900/40 rounded-[4rem] overflow-hidden shadow-2xl border-2 border-white/5 group">
+           {/* Video Feed or Placeholder */}
+           {permissionStatus === 'granted' && videoEnabled ? (
+             <video 
+               ref={videoRef} 
+               autoPlay 
+               muted 
+               playsInline 
+               className="w-full h-full object-cover scale-x-[-1] brightness-110 contrast-110"
+             />
+           ) : (
+             <div className="w-full h-full flex flex-col items-center justify-center space-y-8 bg-black">
+                <div className="relative">
+                   <div className="w-48 h-48 hexagon border-4 border-yellow-400/20 bg-neutral-900 flex items-center justify-center shadow-[0_0_100px_rgba(250,204,21,0.1)] relative z-10">
+                      <i className="fa-solid fa-user text-6xl text-gray-700"></i>
+                   </div>
+                   <div className="absolute inset-0 bg-yellow-400/10 hexagon blur-3xl animate-pulse"></div>
+                </div>
+                <div className="text-center space-y-2">
+                   <p className="text-xl font-black uppercase italic tracking-tighter text-white">Transmission Halted</p>
+                   <p className="text-[10px] text-gray-600 font-black uppercase tracking-[0.4em]">Video Node Offline</p>
+                </div>
+             </div>
+           )}
+
+           {/* Call Overlays */}
+           <div className="absolute bottom-8 left-8 bg-black/60 backdrop-blur-xl px-6 py-3 rounded-2xl border border-yellow-400/20 flex items-center space-x-3">
+              <i className="fa-solid fa-signal text-green-500 text-xs"></i>
+              <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Operative Profile</span>
+           </div>
+
+           {/* Waveform Visualization (Futuristic Touch) */}
+           {!isMuted && (
+             <div className="absolute top-1/2 right-12 -translate-y-1/2 flex flex-col space-y-1 opacity-40">
+                {[...Array(12)].map((_, i) => (
+                   <div key={i} className="h-1 bg-yellow-400 rounded-full transition-all duration-100" style={{ width: `${10 + Math.random() * 40}px`, animationDelay: `${i * 0.1}s` }}></div>
+                ))}
+             </div>
+           )}
+        </div>
+      </div>
+
+      {/* FOOTER: HEXAGONAL CONTROLS */}
+      <div className="h-32 bg-gradient-to-t from-black to-transparent px-10 flex items-center justify-center relative z-50">
+        <div className="flex items-center space-x-6">
+           {/* Mic Toggle */}
+           <div className="relative group">
+              <button 
+                onClick={() => setIsMuted(!isMuted)}
+                className={`w-16 h-16 hexagon flex items-center justify-center transition-all border-2 ${isMuted ? 'bg-red-600 border-red-400 text-white' : 'bg-neutral-900 border-yellow-400/40 text-yellow-400 hover:border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.1)]'}`}
+              >
+                <i className={`fa-solid ${isMuted ? 'fa-microphone-slash' : 'fa-microphone'} text-xl`}></i>
+              </button>
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black border border-white/10 px-3 py-1 rounded-lg text-[8px] font-black uppercase opacity-0 group-hover:opacity-100 transition-opacity">Audio</span>
+           </div>
+
+           {/* Video Toggle */}
+           <div className="relative group">
+              <button 
+                onClick={() => setVideoEnabled(!videoEnabled)}
+                className={`w-16 h-16 hexagon flex items-center justify-center transition-all border-2 ${!videoEnabled ? 'bg-red-600 border-red-400 text-white' : 'bg-neutral-900 border-yellow-400/40 text-yellow-400 hover:border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.1)]'}`}
+              >
+                <i className={`fa-solid ${videoEnabled ? 'fa-video' : 'fa-video-slash'} text-xl`}></i>
+              </button>
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black border border-white/10 px-3 py-1 rounded-lg text-[8px] font-black uppercase opacity-0 group-hover:opacity-100 transition-opacity">Visual</span>
+           </div>
+
+           {/* END CALL: PROMINENT CENTRAL CONTROL */}
+           <div className="relative group mx-4">
+              <div className="absolute inset-0 bg-red-600/20 blur-2xl rounded-full animate-pulse group-hover:bg-red-600/40 transition-all"></div>
+              <button 
+                onClick={onEndCall}
+                className="w-24 h-20 hexagon bg-red-600 hover:bg-red-500 transition-all flex items-center justify-center relative z-10 border-4 border-black/20 group-hover:scale-110 active:scale-95 shadow-[0_20px_60px_rgba(220,38,38,0.4)]"
+              >
+                <i className="fa-solid fa-phone-slash text-3xl text-white"></i>
+              </button>
+              <p className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-[10px] font-black uppercase tracking-widest text-red-500 opacity-0 group-hover:opacity-100 transition-all">Abort Signal</p>
+           </div>
+
+           {/* Screen Share Placeholder */}
+           <div className="relative group">
+              <button className="w-16 h-16 hexagon bg-neutral-900 border-2 border-yellow-400/40 text-yellow-400 hover:border-yellow-400 flex items-center justify-center transition-all">
+                <i className="fa-solid fa-up-right-from-square text-xl"></i>
+              </button>
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black border border-white/10 px-3 py-1 rounded-lg text-[8px] font-black uppercase opacity-0 group-hover:opacity-100 transition-opacity">Stream</span>
+           </div>
+
+           {/* Settings Placeholder */}
+           <div className="relative group">
+              <button className="w-16 h-16 hexagon bg-neutral-900 border-2 border-yellow-400/40 text-yellow-400 hover:border-yellow-400 flex items-center justify-center transition-all">
+                <i className="fa-solid fa-ellipsis-vertical text-xl"></i>
+              </button>
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black border border-white/10 px-3 py-1 rounded-lg text-[8px] font-black uppercase opacity-0 group-hover:opacity-100 transition-opacity">Menu</span>
+           </div>
+        </div>
       </div>
     </div>
   );

@@ -11,10 +11,11 @@ interface MainViewProps {
   toggleTheme: () => void;
 }
 
+const VERSION = "HIVE-SEC v2.5.8-STABLE";
+
 const initialMockChats: Chat[] = [
-  { id: 'nib_official', name: 'NIB SEC', type: 'channel', avatar: 'https://i.ibb.co/3ykXF4K/nib-logo.png', unreadCount: 1, membersCount: 25800, lastMessage: 'Hive node v2.5 operational.', isPinned: true, isVerified: true },
+  { id: 'nib_official', name: 'NIB SEC', type: 'channel', avatar: 'https://i.ibb.co/3ykXF4K/nib-logo.png', unreadCount: 1, membersCount: 25800, lastMessage: 'Hive node operational.', isPinned: true, isVerified: true },
   { id: 'saved', name: 'Saved Messages', type: 'saved', avatar: 'https://cdn-icons-png.flaticon.com/512/566/566412.png', unreadCount: 0, lastMessage: 'Cloud signal stored.', isPinned: true },
-  { id: 'alpha_swarm', name: 'Alpha Swarm', type: 'group', avatar: 'https://picsum.photos/105', unreadCount: 0, membersCount: 12, lastMessage: 'Signal verified.' },
 ];
 
 const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignOut, theme, toggleTheme }) => {
@@ -38,7 +39,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
   // Side Menu & Overlays
   const [showHamburger, setShowHamburger] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-  const [incomingCall, setIncomingCall] = useState<boolean>(false);
+  const [incomingCall, setIncomingCall] = useState<Chat | null>(null);
   
   // Wallet Flow
   const [showWallet, setShowWallet] = useState(false);
@@ -59,23 +60,15 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
     }
   }, [chatMessages, activeChatId]);
 
-  // Call Notification Simulation
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIncomingCall(true);
-      try { new Audio('https://assets.mixkit.co/sfx/preview/mixkit-modern-classic-doorbell-sound-120.mp3').play(); } catch(e){}
-    }, 45000);
-    return () => clearTimeout(timer);
-  }, []);
-
   const handleSendMessage = () => {
     if (!messageInput.trim() || isTransmitting || !activeChatId) return;
     setIsTransmitting(true);
     
+    const msgText = messageInput.trim();
     const newMessage: Message = { 
       id: 'm-' + Date.now(), 
       senderId: 'user', 
-      text: messageInput.trim(), 
+      text: msgText, 
       timestamp: Date.now() 
     };
 
@@ -85,30 +78,27 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
     }));
 
     // Update last message in chat list
-    setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, lastMessage: messageInput.trim() } : c));
+    setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, lastMessage: msgText } : c));
     
     setMessageInput('');
     setTimeout(() => setIsTransmitting(false), 300);
 
-    // Simulate reply for non-official channels
+    // Simulated Peer Reply Logic (e.g. searching @jiiis and saying hi)
     if (activeChatId !== 'nib_official' && activeChatId !== 'saved') {
       setTimeout(() => {
         const reply: Message = {
           id: 'r-' + Date.now(),
           senderId: activeChatId,
-          text: `Signal received. Executing protocol for ${activeChatId}...`,
+          text: msgText.toLowerCase() === 'hi' ? 'Hi! Encrypted tunnel established. How can I help?' : `Message received. Node ${activeChatId} is processing your signal...`,
           timestamp: Date.now()
         };
         setChatMessages(prev => ({
           ...prev,
           [activeChatId]: [...(prev[activeChatId] || []), reply]
         }));
+        setChats(prev => prev.map(c => c.id === activeChatId ? { ...c, lastMessage: reply.text, unreadCount: c.unreadCount + 1 } : c));
       }, 1500);
     }
-  };
-
-  const handlePinToggle = (chatId: string) => {
-    setChats(prev => prev.map(c => c.id === chatId ? { ...c, isPinned: !c.isPinned } : c));
   };
 
   const startNewChat = (targetUsername: string) => {
@@ -120,16 +110,25 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
     } else {
       const newChat: Chat = {
         id: cleanUsername,
-        name: cleanUsername,
+        name: cleanUsername.replace('@', '').toUpperCase(),
         type: 'direct',
         avatar: `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${cleanUsername}`,
         unreadCount: 0,
-        lastMessage: 'Encryption tunnel initialized.'
+        lastMessage: 'Waiting for signal...'
       };
       setChats(prev => [newChat, ...prev]);
       setActiveChatId(newChat.id);
+      
+      // Auto-trigger a call from them if it's a specific "jiiis" search test
+      if (cleanUsername === '@jiiis') {
+        setTimeout(() => setIncomingCall(newChat), 5000);
+      }
     }
     setSearchTerm('');
+  };
+
+  const handlePinToggle = (chatId: string) => {
+    setChats(prev => prev.map(c => c.id === chatId ? { ...c, isPinned: !c.isPinned } : c));
   };
 
   const activeChat = chats.find(c => c.id === activeChatId);
@@ -148,14 +147,14 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
       className={`w-full flex items-center space-x-4 p-4 rounded-[2.5rem] transition-all relative group cursor-pointer ${
         activeChatId === chat.id ? 'bg-yellow-400/10 border border-yellow-400/20 shadow-xl' : 'hover:bg-white/5 border border-transparent'
       }`}
-      onClick={() => setActiveChatId(chat.id)}
+      onClick={() => { setActiveChatId(chat.id); setChats(prev => prev.map(c => c.id === chat.id ? { ...c, unreadCount: 0 } : c)); }}
     >
       <div className="relative shrink-0">
         <div className={`w-14 h-14 hexagon p-0.5 ${chat.isPinned ? 'bg-yellow-400' : 'bg-neutral-800'}`}>
           <img src={chat.avatar} className="w-full h-full hexagon object-cover" alt={chat.name} />
         </div>
         {chat.unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-black">
+          <span className="absolute -top-1 -right-1 bg-yellow-400 text-black text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-black animate-pulse">
             {chat.unreadCount}
           </span>
         )}
@@ -179,19 +178,19 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
       {/* INCOMING CALL NOTIFICATION */}
       {incomingCall && (
         <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[1000] w-full max-w-sm px-6 animate-in slide-in-from-top-10 duration-500">
-          <div className="bg-neutral-900 border-2 border-yellow-400 p-6 rounded-[2.5rem] shadow-[0_20px_60px_rgba(250,204,21,0.3)] flex items-center justify-between honey-glow">
+          <div className="bg-neutral-900 border-2 border-yellow-400 p-6 rounded-[2.5rem] shadow-[0_20px_60px_rgba(250,204,21,0.3)] flex items-center justify-between honey-glow pulse-yellow">
              <div className="flex items-center space-x-4">
                 <div className="w-14 h-14 hexagon bg-yellow-400 p-1">
-                   <img src="https://picsum.photos/101" className="w-full h-full hexagon object-cover" alt="caller" />
+                   <img src={incomingCall.avatar} className="w-full h-full hexagon object-cover" alt="caller" />
                 </div>
                 <div>
-                   <h4 className="text-sm font-black uppercase italic text-yellow-400">Incoming Call</h4>
-                   <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Signal Detected</p>
+                   <h4 className="text-sm font-black uppercase italic text-yellow-400">Incoming Signal</h4>
+                   <p className="text-[10px] text-white font-black uppercase tracking-widest">{incomingCall.name}</p>
                 </div>
              </div>
              <div className="flex space-x-2">
-                <button onClick={() => { setIncomingCall(false); onStartCall(); }} className="w-12 h-12 rounded-full bg-green-500 text-black flex items-center justify-center hover:scale-110 transition-transform"><i className="fa-solid fa-phone"></i></button>
-                <button onClick={() => setIncomingCall(false)} className="w-12 h-12 rounded-full bg-red-600 text-white flex items-center justify-center hover:scale-110 transition-transform"><i className="fa-solid fa-phone-slash"></i></button>
+                <button onClick={() => { setIncomingCall(null); onStartCall(); }} className="w-12 h-12 rounded-full bg-green-500 text-black flex items-center justify-center hover:scale-110 transition-transform"><i className="fa-solid fa-phone"></i></button>
+                <button onClick={() => setIncomingCall(null)} className="w-12 h-12 rounded-full bg-red-600 text-white flex items-center justify-center hover:scale-110 transition-transform"><i className="fa-solid fa-phone-slash"></i></button>
              </div>
           </div>
         </div>
@@ -231,13 +230,14 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
              </div>
              
              <div className="p-8 text-center border-t border-white/5">
-                <p className="text-[9px] text-gray-700 font-black uppercase tracking-[0.4em]">© 2025 NIB SEC</p>
+                <p className="text-[10px] text-gray-700 font-black uppercase tracking-[0.4em] mb-1">{VERSION}</p>
+                <p className="text-[9px] text-gray-800 font-black uppercase tracking-[0.4em]">© 2025 NIB SEC</p>
              </div>
           </div>
         </div>
       )}
 
-      {/* WALLET / CIPHER VAULT MODAL */}
+      {/* WALLET MODAL */}
       {showWallet && (
         <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 bg-black/90 backdrop-blur-2xl animate-in fade-in duration-300">
            <div className="w-full max-w-xl bg-neutral-900 border border-yellow-400/20 rounded-[4rem] p-12 relative overflow-hidden shadow-[0_0_150px_rgba(250,204,21,0.15)] honey-glow">
@@ -364,7 +364,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
            <h1 className="hidden lg:block text-2xl font-black text-yellow-400 uppercase tracking-tighter italic">NIB SEC</h1>
         </div>
 
-        {/* Search Header */}
+        {/* Search Header - Robust Global Search */}
         <div className="px-6 py-4 border-b border-white/5">
            <div className="relative group">
               <i className="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-yellow-400 transition-colors"></i>
@@ -372,7 +372,8 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                 type="text" 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Find Operative..."
+                onKeyDown={(e) => e.key === 'Enter' && searchTerm.startsWith('@') && startNewChat(searchTerm)}
+                placeholder="Find Operative (@user)..."
                 className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 outline-none focus:border-yellow-400/40 text-xs font-black uppercase tracking-widest text-white transition-all"
               />
            </div>
@@ -380,13 +381,13 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
 
         <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-8 custom-scrollbar">
            {searchTerm && !chats.some(c => c.id.toLowerCase().includes(searchTerm.toLowerCase())) && searchTerm.startsWith('@') && (
-              <div className="space-y-3">
-                 <h4 className="px-6 text-[10px] text-gray-700 font-black uppercase tracking-[0.4em]">New Node Found</h4>
+              <div className="space-y-3 animate-in fade-in duration-300">
+                 <h4 className="px-6 text-[10px] text-yellow-400/40 font-black uppercase tracking-[0.4em]">Global Node Search</h4>
                  <button 
                   onClick={() => startNewChat(searchTerm)}
-                  className="w-full flex items-center space-x-4 p-4 rounded-[2.5rem] bg-yellow-400/5 border border-dashed border-yellow-400/30 hover:border-yellow-400 transition-all"
+                  className="w-full flex items-center space-x-4 p-4 rounded-[2.5rem] bg-yellow-400/5 border border-dashed border-yellow-400/30 hover:border-yellow-400 transition-all group"
                  >
-                    <div className="w-12 h-12 hexagon bg-yellow-400 flex items-center justify-center text-black font-black">?</div>
+                    <div className="w-12 h-12 hexagon bg-yellow-400 flex items-center justify-center text-black font-black group-hover:scale-110 transition-transform"><i className="fa-solid fa-user-plus"></i></div>
                     <div className="flex-1 text-left">
                        <p className="text-sm font-black text-yellow-400 uppercase">Initialize {searchTerm}</p>
                        <p className="text-[9px] text-gray-600 font-black uppercase">Create Secure Tunnel</p>
@@ -430,7 +431,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    <p className="text-[11px] text-gray-500 uppercase tracking-[0.3em] font-black">Node Verified</p>
+                    <p className="text-[11px] text-gray-500 uppercase tracking-[0.3em] font-black">Secure Node Active</p>
                     {activeChat?.type === 'channel' && <span className="text-[10px] text-yellow-400/40 font-black uppercase tracking-widest ml-4">{activeChat.membersCount?.toLocaleString()} Subscribers</span>}
                   </div>
                 </div>
@@ -467,8 +468,8 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                       </div>
                     )}
                 </div>
-                {activeChat?.type !== 'channel' && (
-                  <button onClick={onStartCall} className="w-16 h-16 rounded-[2.5rem] bg-yellow-400 text-black hover:bg-white transition-all flex items-center justify-center shadow-[0_15px_40px_rgba(250,204,21,0.3)]"><i className="fa-solid fa-phone text-2xl"></i></button>
+                {activeChat?.type !== 'channel' && activeChat?.type !== 'saved' && (
+                  <button onClick={onStartCall} className="w-16 h-16 rounded-[2.5rem] bg-yellow-400 text-black hover:bg-white transition-all flex items-center justify-center shadow-[0_15px_40px_rgba(250,204,21,0.3)] hover:scale-110 active:scale-95"><i className="fa-solid fa-phone text-2xl"></i></button>
                 )}
               </div>
             </div>
@@ -484,8 +485,8 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                   <div className={`max-w-[70%] space-y-3 animate-msg`}>
                     <div className={`p-8 rounded-[3.5rem] text-[16px] leading-relaxed relative transition-all shadow-2xl ${
                       msg.senderId === 'user' 
-                      ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black font-black' 
-                      : 'bg-[#0a0a0a] border border-white/5 text-gray-100 shadow-[inset_0_0_20px_rgba(250,204,21,0.05)]'
+                      ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black font-black rounded-tr-none' 
+                      : 'bg-[#0a0a0a] border border-white/5 text-gray-100 shadow-[inset_0_0_20px_rgba(250,204,21,0.05)] rounded-tl-none'
                     }`}>
                         {msg.text}
                     </div>
