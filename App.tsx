@@ -9,18 +9,40 @@ import CallingView from './views/CallingView';
 import AdminView from './views/AdminView';
 
 const GITHUB_CLIENT_ID = "Ov23liHIbFs3qWTJ0bez";
-const ADMIN_PHONE = "+251978366565";
+const ADMIN_SECRET = "https://nibsec.netlify.app/";
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [appState, setAppState] = useState<AppState>('LOGIN');
   const [theme, setTheme] = useState<Theme>('night');
 
+  // Persistence logic
   useEffect(() => {
+    const savedUser = localStorage.getItem('nib_sec_user');
+    const savedState = localStorage.getItem('nib_sec_state');
+    const savedTheme = localStorage.getItem('nib_sec_theme');
+
+    if (savedTheme) setTheme(savedTheme as Theme);
+    
+    if (savedUser && savedState && savedState !== 'LOADING') {
+      setUser(JSON.parse(savedUser));
+      setAppState(savedState as AppState);
+    }
+
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     if (code) handleOAuthSuccess();
   }, []);
+
+  useEffect(() => {
+    if (appState !== 'LOADING') {
+      localStorage.setItem('nib_sec_state', appState);
+      localStorage.setItem('nib_sec_theme', theme);
+      if (user) {
+        localStorage.setItem('nib_sec_user', JSON.stringify(user));
+      }
+    }
+  }, [appState, user, theme]);
 
   const handleOAuthSuccess = () => {
     setAppState('LOADING');
@@ -32,7 +54,8 @@ const App: React.FC = () => {
         email: 'dev@github.com',
         avatarUrl: 'https://picsum.photos/200',
         isProfileComplete: false,
-        walletBalance: '0.00'
+        walletBalance: '0.00',
+        loginMethod: 'github'
       };
       setUser(mockUser);
       setAppState('SETUP');
@@ -48,7 +71,7 @@ const App: React.FC = () => {
     } else {
       setAppState('LOADING');
       setTimeout(() => {
-        if (phoneValue === ADMIN_PHONE) {
+        if (phoneValue === ADMIN_SECRET) {
           setAppState('ADMIN');
           return;
         }
@@ -59,7 +82,8 @@ const App: React.FC = () => {
           phone: phoneValue,
           avatarUrl: 'https://picsum.photos/200',
           isProfileComplete: false,
-          walletBalance: '0.00'
+          walletBalance: '0.00',
+          loginMethod: 'phone'
         };
         setUser(mockUser);
         setAppState('SETUP');
@@ -69,10 +93,18 @@ const App: React.FC = () => {
 
   const handleSetupComplete = (username: string, avatar: string, displayName: string) => {
     if (user) {
-      setUser({ ...user, username, avatarUrl: avatar, displayName, isProfileComplete: true });
+      const updatedUser = { ...user, username, avatarUrl: avatar, displayName, isProfileComplete: true };
+      setUser(updatedUser);
       setAppState('LOADING');
       setTimeout(() => setAppState('MAIN'), 2000);
     }
+  };
+
+  const handleSignOut = () => {
+    localStorage.removeItem('nib_sec_user');
+    localStorage.removeItem('nib_sec_state');
+    setUser(null);
+    setAppState('LOGIN');
   };
 
   const toggleTheme = () => setTheme(prev => prev === 'night' ? 'light' : 'night');
@@ -93,6 +125,7 @@ const App: React.FC = () => {
           user={user}
           setUser={setUser}
           onStartCall={() => setAppState('CALLING')} 
+          onSignOut={handleSignOut}
           theme={theme}
           toggleTheme={toggleTheme}
         />

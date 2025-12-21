@@ -9,8 +9,8 @@ export interface User {
   isProfileComplete: boolean;
   walletBalance: string;
   isBanned?: boolean;
-  // Fix: Added isVerified property as it is used in AdminView and elsewhere to track verified user status
   isVerified?: boolean;
+  loginMethod?: 'github' | 'phone';
 }
 
 export interface PaymentRequest {

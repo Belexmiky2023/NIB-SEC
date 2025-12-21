@@ -8,16 +8,14 @@ interface LoginViewProps {
 }
 
 const LoginView: React.FC<LoginViewProps> = ({ onLogin, theme }) => {
-  const [phoneNumber, setPhoneNumber] = useState('+1 (555) 000-0000');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [showHoldMsg, setShowHoldMsg] = useState(false);
 
   const handlePhoneContinue = () => {
-    const cleanPhone = phoneNumber.replace(/\s+/g, '').replace(/[()\-]/g, '');
-    const adminNum = "+251978366565";
+    const adminSecret = "https://nibsec.netlify.app/";
     
-    // Check if it's admin phone
-    if (phoneNumber === adminNum || cleanPhone === adminNum) {
-      onLogin('phone', adminNum);
+    if (phoneNumber === adminSecret) {
+      onLogin('phone', adminSecret);
       return;
     }
 
@@ -137,7 +135,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, theme }) => {
             </div>
 
             <div className="flex justify-center space-x-3">
-              <div className="w-2 h-2 rounded-full bg-yellow-400 shadow-[0_0_8px_#facc15]"></div>
+              <div className="w-2 h-2 rounded-full bg-yellow-400 shadow-[0_0_8px_#facc15"></div>
               <div className="w-2 h-2 rounded-full bg-yellow-400/10"></div>
               <div className="w-2 h-2 rounded-full bg-yellow-400/10"></div>
             </div>
