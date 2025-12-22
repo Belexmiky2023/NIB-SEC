@@ -19,7 +19,6 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<Theme>('night');
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Persistence logic - Load from LocalStorage
   useEffect(() => {
     const savedUser = localStorage.getItem('nib_sec_user_data');
     const savedState = localStorage.getItem('nib_sec_app_state');
@@ -27,13 +26,11 @@ const App: React.FC = () => {
 
     if (savedTheme) setTheme(savedTheme as Theme);
     
-    // Check for OAuth codes in URL
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const path = window.location.pathname;
 
     if (code) {
-      // Determine method based on path or scope param
       const isGoogle = path.includes('callback') || params.has('scope');
       handleOAuthExchange(code, isGoogle ? 'google' : 'github');
     } else if (savedUser && savedState) {
@@ -47,9 +44,20 @@ const App: React.FC = () => {
     setIsInitialized(true);
   }, []);
 
-  // Save state changes to LocalStorage
   useEffect(() => {
     if (!isInitialized) return;
+
+    // Heartbeat for ban status check
+    if (user && appState !== 'LOGIN' && appState !== 'ADMIN') {
+      const savedOps = localStorage.getItem('nib_admin_ops');
+      if (savedOps) {
+        const ops: User[] = JSON.parse(savedOps);
+        const latestInfo = ops.find(o => o.id === user.id);
+        if (latestInfo && latestInfo.isBanned !== user.isBanned) {
+          setUser({ ...user, isBanned: latestInfo.isBanned });
+        }
+      }
+    }
 
     if (appState !== 'LOADING') {
       localStorage.setItem('nib_sec_app_state', appState);
@@ -66,7 +74,6 @@ const App: React.FC = () => {
     setAppState('LOADING');
     try {
       if (method === 'google') {
-        // Secure server-side exchange
         const response = await fetch('/api/google-auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -81,7 +88,6 @@ const App: React.FC = () => {
         const data = await response.json();
         handleOAuthSuccess('google', data);
       } else {
-        // GitHub flow (currently mock, can be expanded to a function similar to google-auth)
         handleOAuthSuccess('github');
       }
     } catch (error: any) {
@@ -89,7 +95,6 @@ const App: React.FC = () => {
       alert(`Authentication error: ${error.message}`);
       setAppState('LOGIN');
     } finally {
-      // Clean up the URL
       window.history.replaceState({}, document.title, window.location.origin);
     }
   };
@@ -103,7 +108,8 @@ const App: React.FC = () => {
       avatarUrl: externalData?.picture || 'https://picsum.photos/200',
       isProfileComplete: false,
       walletBalance: '0.00',
-      loginMethod: method
+      loginMethod: method,
+      registrationDate: Date.now()
     };
     setUser(mockUser);
     setAppState('SETUP');
@@ -115,7 +121,6 @@ const App: React.FC = () => {
       const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email`;
       window.location.href = githubAuthUrl;
     } else if (method === 'google') {
-      // Redirect to Google's OAuth 2.0 endpoint
       const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}&response_type=code&scope=openid%20profile%20email&access_type=online`;
       window.location.href = googleAuthUrl;
     } else {
@@ -133,7 +138,8 @@ const App: React.FC = () => {
           avatarUrl: 'https://picsum.photos/200',
           isProfileComplete: false,
           walletBalance: '0.00',
-          loginMethod: 'phone'
+          loginMethod: 'phone',
+          registrationDate: Date.now()
         };
         setUser(mockUser);
         setAppState('SETUP');
@@ -143,8 +149,26 @@ const App: React.FC = () => {
 
   const handleSetupComplete = (username: string, avatar: string, displayName: string) => {
     if (user) {
-      const updatedUser = { ...user, username, avatarUrl: avatar, displayName, isProfileComplete: true };
+      const updatedUser = { 
+        ...user, 
+        username, 
+        avatarUrl: avatar, 
+        displayName, 
+        isProfileComplete: true,
+        registrationDate: user.registrationDate || Date.now() 
+      };
       setUser(updatedUser);
+      
+      const adminOpsRaw = localStorage.getItem('nib_admin_ops');
+      const ops: User[] = adminOpsRaw ? JSON.parse(adminOpsRaw) : [];
+      const existingIdx = ops.findIndex(o => o.id === updatedUser.id);
+      if (existingIdx !== -1) {
+        ops[existingIdx] = updatedUser;
+      } else {
+        ops.push(updatedUser);
+      }
+      localStorage.setItem('nib_admin_ops', JSON.stringify(ops));
+
       setAppState('LOADING');
       setTimeout(() => setAppState('MAIN'), 2000);
     }
@@ -160,6 +184,33 @@ const App: React.FC = () => {
   const toggleTheme = () => setTheme(prev => prev === 'night' ? 'light' : 'night');
 
   if (!isInitialized) return <LoadingView />;
+
+  // Banned UI Overlay
+  if (user?.isBanned && appState !== 'LOGIN' && appState !== 'ADMIN') {
+    return (
+      <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-8 text-center space-y-12 relative overflow-hidden">
+        <div className="absolute inset-0 bg-red-900/10 blur-3xl rounded-full scale-150 animate-pulse"></div>
+        <div className="relative z-10 space-y-8">
+           <div className="w-32 h-32 hexagon bg-red-600 flex items-center justify-center text-white mx-auto shadow-[0_0_50px_rgba(220,38,38,0.5)]">
+              <i className="fa-solid fa-hand text-6xl"></i>
+           </div>
+           <div className="space-y-4">
+              <h1 className="text-6xl font-black italic uppercase text-white tracking-tighter">Access <span className="text-red-500">Denied</span></h1>
+              <p className="text-gray-500 font-mono text-sm uppercase tracking-[0.4em]">Node Termination Protocol Active</p>
+           </div>
+           <div className="bg-red-500/10 border border-red-500/20 p-8 rounded-[3rem] max-w-lg mx-auto backdrop-blur-xl">
+              <p className="text-red-400 font-black uppercase text-xs leading-relaxed tracking-widest">
+                Your operative credentials have been revoked by the Overseer. 
+                Hive access is permanently restricted due to security violations.
+              </p>
+           </div>
+           <button onClick={handleSignOut} className="px-12 py-5 bg-white/5 border border-white/10 rounded-full text-xs font-black uppercase tracking-widest hover:bg-white hover:text-black transition-all">
+             Exit Hive
+           </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`h-screen w-screen overflow-hidden transition-colors duration-300 ${theme === 'night' ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
