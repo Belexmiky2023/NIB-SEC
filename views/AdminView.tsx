@@ -24,14 +24,21 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
 
   useEffect(() => {
     const pollHive = () => {
+      // 1. Fetch all Signals
       const globalSignals = JSON.parse(localStorage.getItem('nib_global_signals') || '[]');
       setSignals(globalSignals);
 
-      const savedOps = localStorage.getItem('nib_admin_ops');
-      const savedPays = localStorage.getItem('nib_admin_pays');
+      // 2. Fetch ALL Operatives (Users) - Global Registry
+      const savedOpsRaw = localStorage.getItem('nib_admin_ops');
+      const savedOps = savedOpsRaw ? JSON.parse(savedOpsRaw) : [];
+      setOperatives(savedOps);
+
+      // 3. Fetch ALL Purchase Records - Global Ledger
+      const savedPaysRaw = localStorage.getItem('nib_admin_pays');
+      const savedPays = savedPaysRaw ? JSON.parse(savedPaysRaw) : [];
+      setPayments(savedPays);
       
-      setOperatives(savedOps ? JSON.parse(savedOps) : []);
-      setPayments(savedPays ? JSON.parse(savedPays) : []);
+      console.log('Admin Data Refreshed. Ops:', savedOps.length, 'Payments:', savedPays.length);
     };
     pollHive();
     const inv = setInterval(pollHive, 1500);
@@ -55,7 +62,7 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
     setOperatives(updatedOps);
     
     const targetUser = operatives.find(o => o.id === userId);
-    addSignal('ALERT', `OPERATIVE STATUS CHANGE: ${targetUser?.username} is now ${isBanned ? 'BANNED' : 'REINSTATED'} by Overseer.`);
+    addSignal('ALERT', `OPERATIVE STATUS CHANGE: ${targetUser?.username || targetUser?.displayName} is now ${isBanned ? 'BANNED' : 'REINSTATED'} by Overseer.`);
   };
 
   const handlePaymentAction = (reqId: string, status: 'approved' | 'rejected') => {
@@ -152,7 +159,7 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
                           </div>
                           <div className="truncate">
                             <p className={`text-lg font-black uppercase truncate ${op.isBanned ? 'text-gray-600' : 'text-white'}`}>{op.displayName}</p>
-                            <p className="text-[10px] text-gray-600 font-mono truncate">{op.username}</p>
+                            <p className="text-[10px] text-gray-600 font-mono truncate">{op.username || 'NO HANDLE'}</p>
                           </div>
                        </div>
                        <div className="w-1/6 text-center">
@@ -180,6 +187,7 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
                        </div>
                     </div>
                   ))}
+                  {operatives.length === 0 && <div className="text-center py-20 opacity-20 font-black uppercase tracking-widest">No nodes registered in the hive</div>}
                </div>
             </div>
           )}

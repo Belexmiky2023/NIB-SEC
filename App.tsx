@@ -19,6 +19,25 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<Theme>('night');
   const [isInitialized, setIsInitialized] = useState(false);
 
+  // Helper to persist user to global registry (simulating a database collection)
+  const syncUserToGlobalRegistry = (userData: User) => {
+    try {
+      const adminOpsRaw = localStorage.getItem('nib_admin_ops');
+      const ops: User[] = adminOpsRaw ? JSON.parse(adminOpsRaw) : [];
+      const existingIdx = ops.findIndex(o => o.id === userData.id);
+      
+      if (existingIdx !== -1) {
+        ops[existingIdx] = { ...ops[existingIdx], ...userData };
+      } else {
+        ops.push(userData);
+      }
+      localStorage.setItem('nib_admin_ops', JSON.stringify(ops));
+      console.log('User synced to global registry:', userData.id);
+    } catch (e) {
+      console.error('Failed to sync user to global registry', e);
+    }
+  };
+
   useEffect(() => {
     const savedUser = localStorage.getItem('nib_sec_user_data');
     const savedState = localStorage.getItem('nib_sec_app_state');
@@ -47,7 +66,6 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isInitialized) return;
 
-    // Heartbeat for ban status check
     if (user && appState !== 'LOGIN' && appState !== 'ADMIN') {
       const savedOps = localStorage.getItem('nib_admin_ops');
       if (savedOps) {
@@ -112,6 +130,7 @@ const App: React.FC = () => {
       registrationDate: Date.now()
     };
     setUser(mockUser);
+    syncUserToGlobalRegistry(mockUser);
     setAppState('SETUP');
   };
 
@@ -142,6 +161,7 @@ const App: React.FC = () => {
           registrationDate: Date.now()
         };
         setUser(mockUser);
+        syncUserToGlobalRegistry(mockUser);
         setAppState('SETUP');
       }, 2000);
     }
@@ -158,16 +178,7 @@ const App: React.FC = () => {
         registrationDate: user.registrationDate || Date.now() 
       };
       setUser(updatedUser);
-      
-      const adminOpsRaw = localStorage.getItem('nib_admin_ops');
-      const ops: User[] = adminOpsRaw ? JSON.parse(adminOpsRaw) : [];
-      const existingIdx = ops.findIndex(o => o.id === updatedUser.id);
-      if (existingIdx !== -1) {
-        ops[existingIdx] = updatedUser;
-      } else {
-        ops.push(updatedUser);
-      }
-      localStorage.setItem('nib_admin_ops', JSON.stringify(ops));
+      syncUserToGlobalRegistry(updatedUser);
 
       setAppState('LOADING');
       setTimeout(() => setAppState('MAIN'), 2000);
@@ -185,7 +196,6 @@ const App: React.FC = () => {
 
   if (!isInitialized) return <LoadingView />;
 
-  // Banned UI Overlay
   if (user?.isBanned && appState !== 'LOGIN' && appState !== 'ADMIN') {
     return (
       <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-8 text-center space-y-12 relative overflow-hidden">
