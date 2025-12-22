@@ -57,13 +57,13 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
       liveNodes[user.id] = { ...user, lastSeen: Date.now() };
       localStorage.setItem('nib_live_nodes', JSON.stringify(liveNodes));
 
-      // Sync wallet balance if admin changed it
+      // Sync user info (balance, ban status) from global registry
       const savedOps = localStorage.getItem('nib_admin_ops');
       if (savedOps) {
         const ops: User[] = JSON.parse(savedOps);
-        const myNode = ops.find(o => o.id === user.id);
-        if (myNode && myNode.walletBalance !== user.walletBalance) {
-          setUser(prev => prev ? { ...prev, walletBalance: myNode.walletBalance } : null);
+        const latestInfo = ops.find(o => o.id === user.id);
+        if (latestInfo && (latestInfo.walletBalance !== user.walletBalance || latestInfo.isBanned !== user.isBanned)) {
+          setUser(prev => prev ? { ...prev, walletBalance: latestInfo.walletBalance, isBanned: latestInfo.isBanned } : null);
         }
       }
 
@@ -85,7 +85,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
   const submitCoinRequest = () => {
     try {
       const requestsStr = localStorage.getItem('nib_admin_pays');
-      const requests: PaymentRequest[] = requestsStr ? JSON.parse(requestsStr) : [];
+      let requests: PaymentRequest[] = requestsStr ? JSON.parse(requestsStr) : [];
       
       const newReq: PaymentRequest = { 
         id: 'req-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4), 
@@ -100,11 +100,11 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
       const updatedRequests = [...requests, newReq];
       localStorage.setItem('nib_admin_pays', JSON.stringify(updatedRequests));
       
-      console.log('Purchase Request Created:', newReq);
+      console.log('[PURCHASE_CREATED] Persistent record saved to nib_admin_pays:', newReq);
       broadcastSignal('LIQUIDITY', `Initiated liquidation request for ${buyQuantity} Signal Coins.`);
       setWalletStep('waiting');
     } catch (err) {
-      console.error('Failed to create purchase request', err);
+      console.error('[PURCHASE_ERROR] Failed to persist purchase record:', err);
       alert('Network error. Failed to initiate handshake.');
     }
   };

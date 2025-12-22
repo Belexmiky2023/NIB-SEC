@@ -19,22 +19,23 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<Theme>('night');
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Helper to persist user to global registry (simulating a database collection)
+  // CRITICAL: Persistence Logic for Global User Registry
   const syncUserToGlobalRegistry = (userData: User) => {
     try {
       const adminOpsRaw = localStorage.getItem('nib_admin_ops');
-      const ops: User[] = adminOpsRaw ? JSON.parse(adminOpsRaw) : [];
-      const existingIdx = ops.findIndex(o => o.id === userData.id);
+      let ops: User[] = adminOpsRaw ? JSON.parse(adminOpsRaw) : [];
       
+      const existingIdx = ops.findIndex(o => o.id === userData.id);
       if (existingIdx !== -1) {
         ops[existingIdx] = { ...ops[existingIdx], ...userData };
       } else {
         ops.push(userData);
       }
+      
       localStorage.setItem('nib_admin_ops', JSON.stringify(ops));
-      console.log('User synced to global registry:', userData.id);
+      console.log(`[AUTH_SYNC] Persistent record updated for User: ${userData.id} (${userData.username || 'Pending Handle'})`);
     } catch (e) {
-      console.error('Failed to sync user to global registry', e);
+      console.error('[AUTH_SYNC_ERROR] Failed to persist user record:', e);
     }
   };
 
@@ -53,10 +54,14 @@ const App: React.FC = () => {
       const isGoogle = path.includes('callback') || params.has('scope');
       handleOAuthExchange(code, isGoogle ? 'google' : 'github');
     } else if (savedUser && savedState) {
-      const parsedUser = JSON.parse(savedUser);
-      if (['MAIN', 'ADMIN', 'SETUP'].includes(savedState)) {
-        setUser(parsedUser);
-        setAppState(savedState as AppState);
+      try {
+        const parsedUser = JSON.parse(savedUser);
+        if (['MAIN', 'ADMIN', 'SETUP'].includes(savedState)) {
+          setUser(parsedUser);
+          setAppState(savedState as AppState);
+        }
+      } catch (e) {
+        console.error('Session restoration failed');
       }
     }
 
@@ -66,13 +71,16 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isInitialized) return;
 
+    // Heartbeat for ban status check and balance syncing
     if (user && appState !== 'LOGIN' && appState !== 'ADMIN') {
       const savedOps = localStorage.getItem('nib_admin_ops');
       if (savedOps) {
         const ops: User[] = JSON.parse(savedOps);
         const latestInfo = ops.find(o => o.id === user.id);
-        if (latestInfo && latestInfo.isBanned !== user.isBanned) {
-          setUser({ ...user, isBanned: latestInfo.isBanned });
+        if (latestInfo) {
+          if (latestInfo.isBanned !== user.isBanned || latestInfo.walletBalance !== user.walletBalance) {
+            setUser({ ...user, isBanned: latestInfo.isBanned, walletBalance: latestInfo.walletBalance });
+          }
         }
       }
     }
@@ -136,8 +144,7 @@ const App: React.FC = () => {
 
   const handleLogin = (method: 'github' | 'phone' | 'google', val?: string) => {
     if (method === 'github') {
-      const redirectUri = window.location.origin;
-      const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email`;
+      const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&scope=user:email`;
       window.location.href = githubAuthUrl;
     } else if (method === 'google') {
       const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}&response_type=code&scope=openid%20profile%20email&access_type=online`;
@@ -146,6 +153,7 @@ const App: React.FC = () => {
       setAppState('LOADING');
       setTimeout(() => {
         if (val === ADMIN_SECRET) {
+          console.log('[ADMIN] Overseer access granted.');
           setAppState('ADMIN');
           return;
         }
@@ -163,7 +171,7 @@ const App: React.FC = () => {
         setUser(mockUser);
         syncUserToGlobalRegistry(mockUser);
         setAppState('SETUP');
-      }, 2000);
+      }, 1500);
     }
   };
 
@@ -181,12 +189,15 @@ const App: React.FC = () => {
       syncUserToGlobalRegistry(updatedUser);
 
       setAppState('LOADING');
-      setTimeout(() => setAppState('MAIN'), 2000);
+      setTimeout(() => setAppState('MAIN'), 1500);
     }
   };
 
   const handleSignOut = () => {
-    localStorage.clear();
+    console.log('[SESSION] Terminating node connection.');
+    // CRITICAL FIX: Only remove session data, do NOT clear global registry
+    localStorage.removeItem('nib_sec_user_data');
+    localStorage.removeItem('nib_sec_app_state');
     setUser(null);
     setAppState('LOGIN');
     window.location.reload(); 

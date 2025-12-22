@@ -25,7 +25,8 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
   useEffect(() => {
     const pollHive = () => {
       // 1. Fetch all Signals
-      const globalSignals = JSON.parse(localStorage.getItem('nib_global_signals') || '[]');
+      const globalSignalsRaw = localStorage.getItem('nib_global_signals');
+      const globalSignals = globalSignalsRaw ? JSON.parse(globalSignalsRaw) : [];
       setSignals(globalSignals);
 
       // 2. Fetch ALL Operatives (Users) - Global Registry
@@ -38,10 +39,11 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
       const savedPays = savedPaysRaw ? JSON.parse(savedPaysRaw) : [];
       setPayments(savedPays);
       
-      console.log('Admin Data Refreshed. Ops:', savedOps.length, 'Payments:', savedPays.length);
+      console.log(`[ADMIN_QUERY] Polled hive records. Operatives: ${savedOps.length}, Purchases: ${savedPays.length}`);
     };
+    
     pollHive();
-    const inv = setInterval(pollHive, 1500);
+    const inv = setInterval(pollHive, 2000); // Polling every 2s
     return () => clearInterval(inv);
   }, []);
 
