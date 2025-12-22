@@ -19,94 +19,105 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
   const [operatives, setOperatives] = useState<User[]>([]);
   const [signals, setSignals] = useState<SignalEvent[]>([]);
   const [payments, setPayments] = useState<PaymentRequest[]>([]);
+  const [activeCount, setActiveCount] = useState(0);
+  const [bannedCount, setBannedCount] = useState(0);
   
   const signalEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const pollHive = () => {
-      // 1. Fetch all Signals
-      const globalSignalsRaw = localStorage.getItem('nib_global_signals');
-      const globalSignals = globalSignalsRaw ? JSON.parse(globalSignalsRaw) : [];
-      setSignals(globalSignals);
+    const pollHive = async () => {
+      try {
+        // 1. Fetch ALL Operatives from Backend API (KV Source)
+        const opsResponse = await fetch('/api/users');
+        if (opsResponse.ok) {
+          const savedOps: User[] = await opsResponse.json();
+          // Sort by registration date descending
+          const sortedOps = savedOps.sort((a, b) => (b.registrationDate || 0) - (a.registrationDate || 0));
+          setOperatives(sortedOps);
+          setBannedCount(sortedOps.filter(op => op.isBanned).length);
+        }
 
-      // 2. Fetch ALL Operatives (Users) - Global Registry
-      const savedOpsRaw = localStorage.getItem('nib_admin_ops');
-      const savedOps = savedOpsRaw ? JSON.parse(savedOpsRaw) : [];
-      setOperatives(savedOps);
+        // 2. Fetch ALL Purchase Records from Backend API (KV Source)
+        const paysResponse = await fetch('/api/purchases');
+        if (paysResponse.ok) {
+          const savedPays: PaymentRequest[] = await paysResponse.json();
+          setPayments(savedPays);
+        }
 
-      // 3. Fetch ALL Purchase Records - Global Ledger
-      const savedPaysRaw = localStorage.getItem('nib_admin_pays');
-      const savedPays = savedPaysRaw ? JSON.parse(savedPaysRaw) : [];
-      setPayments(savedPays);
-      
-      console.log(`[ADMIN_QUERY] Polled hive records. Operatives: ${savedOps.length}, Purchases: ${savedPays.length}`);
+        // 3. Heartbeat for Active Nodes
+        const liveNodesRaw = localStorage.getItem('nib_live_nodes');
+        const liveNodes = liveNodesRaw ? JSON.parse(liveNodesRaw) : {};
+        const now = Date.now();
+        const activeNodes = Object.values(liveNodes).filter((node: any) => (now - node.lastSeen) < 30000);
+        setActiveCount(activeNodes.length);
+
+        console.log(`[ADMIN_SYNC] Fetched ${operatives.length} users from shared identity vault.`);
+      } catch (e) {
+        console.error("Overseer uplink failure:", e);
+      }
     };
     
     pollHive();
-    const inv = setInterval(pollHive, 2000); // Polling every 2s
+    const inv = setInterval(pollHive, 5000);
     return () => clearInterval(inv);
-  }, []);
+  }, [operatives.length, payments.length]);
 
-  const addSignal = (type: SignalEvent['type'], content: string) => {
-    const signalLog = JSON.parse(localStorage.getItem('nib_global_signals') || '[]');
-    const newSignal: SignalEvent = { id: Date.now(), sender: 'OVERSEER', type, content, timestamp: Date.now() };
-    localStorage.setItem('nib_global_signals', JSON.stringify([newSignal, ...signalLog].slice(0, 100)));
-  };
-
-  const handleBanStatus = (userId: string, isBanned: boolean) => {
-    const updatedOps = operatives.map(op => {
-      if (op.id === userId) {
-        return { ...op, isBanned };
-      }
-      return op;
-    });
-    localStorage.setItem('nib_admin_ops', JSON.stringify(updatedOps));
-    setOperatives(updatedOps);
-    
+  const handleBanStatus = async (userId: string, isBanned: boolean) => {
     const targetUser = operatives.find(o => o.id === userId);
-    addSignal('ALERT', `OPERATIVE STATUS CHANGE: ${targetUser?.username || targetUser?.displayName} is now ${isBanned ? 'BANNED' : 'REINSTATED'} by Overseer.`);
+    if (!targetUser) return;
+
+    const updatedUser = { ...targetUser, isBanned };
+
+    try {
+      await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedUser),
+      });
+      // Refresh local state will happen on next poll cycle
+    } catch (e) {
+      alert("Failed to modify node status.");
+    }
   };
 
-  const handlePaymentAction = (reqId: string, status: 'approved' | 'rejected') => {
-    const updatedPayments = payments.map(p => {
-      if (p.id === reqId) {
-        return { ...p, status };
-      }
-      return p;
-    });
-
+  const handlePaymentAction = async (reqId: string, status: 'approved' | 'rejected') => {
     const req = payments.find(p => p.id === reqId);
     if (!req) return;
 
-    if (status === 'approved') {
-      const updatedOps = operatives.map(op => {
-        if (op.id === req.userId) {
-          const currentBal = parseFloat(op.walletBalance) || 0;
-          const addAmount = parseFloat(req.amount) || 0;
-          return { ...op, walletBalance: (currentBal + addAmount).toFixed(2) };
-        }
-        return op;
+    const updatedReq = { ...req, status };
+
+    try {
+      await fetch('/api/purchases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedReq),
       });
-      localStorage.setItem('nib_admin_ops', JSON.stringify(updatedOps));
-      setOperatives(updatedOps);
-      
-      localStorage.setItem(`nib_payment_success_${req.userId}`, JSON.stringify({
-        amount: req.amount,
-        timestamp: Date.now()
-      }));
 
-      addSignal('LIQUIDITY', `ACCESS GRANTED: ${req.amount} NIB coins synced to Operative ${req.username}.`);
-    } else {
-      addSignal('ALERT', `WARNING: Signal request from ${req.username} was REJECTED by Overseer.`);
+      if (status === 'approved') {
+        const userToUpdate = operatives.find(o => o.id === req.userId);
+        if (userToUpdate) {
+          const newBal = (parseFloat(userToUpdate.walletBalance) + parseFloat(req.amount)).toFixed(2);
+          await fetch('/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...userToUpdate, walletBalance: newBal }),
+          });
+        }
+      }
+    } catch (e) {
+      alert("Ledger update failed.");
     }
-
-    localStorage.setItem('nib_admin_pays', JSON.stringify(updatedPayments));
-    setPayments(updatedPayments);
   };
 
   const formatDate = (ts?: number) => {
-    if (!ts) return "---";
-    return new Date(ts).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+    if (!ts) return "UNIDENTIFIED";
+    return new Date(ts).toLocaleDateString([], { 
+      year: '2-digit', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const pendingPayments = payments.filter(p => p.status === 'pending');
@@ -122,9 +133,9 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
           </div>
           <nav className="flex items-center space-x-2">
             {[ 
-              { id: 'war-room', label: 'Tactical', icon: 'fa-microchip' }, 
-              { id: 'operatives', label: 'User Registry', icon: 'fa-users' }, 
-              { id: 'vault', label: 'Purchases', icon: 'fa-vault', badge: pendingPayments.length } 
+              { id: 'operatives', label: 'Nodes', icon: 'fa-users' }, 
+              { id: 'vault', label: 'Vault', icon: 'fa-vault', badge: pendingPayments.length },
+              { id: 'war-room', label: 'Logs', icon: 'fa-microchip' }
             ].map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex items-center space-x-3 px-6 py-2.5 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest ${activeTab === tab.id ? 'bg-yellow-400 text-black' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}>
                 <i className={`fa-solid ${tab.icon}`}></i><span>{tab.label}</span>
@@ -133,7 +144,7 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
             ))}
           </nav>
         </div>
-        <button onClick={onExit} className="px-6 py-2 bg-red-600/10 text-red-600 border border-red-600/20 rounded-lg text-[9px] font-black uppercase hover:bg-red-600 hover:text-white transition-all">Abort</button>
+        <button onClick={onExit} className="px-6 py-2 bg-red-600/10 text-red-600 border border-red-600/20 rounded-lg text-[9px] font-black uppercase hover:bg-red-600 hover:text-white transition-all">Exit Overseer</button>
       </header>
 
       <main className="flex-1 overflow-hidden flex">
@@ -142,54 +153,60 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
           {activeTab === 'operatives' && (
             <div className="flex-1 p-10 space-y-8 overflow-y-auto custom-scrollbar">
                <div className="flex items-center justify-between px-4">
-                  <h2 className="text-2xl font-black italic uppercase text-white">Registered Operatives</h2>
-                  <p className="text-[10px] text-gray-700 font-mono">{operatives.length} TOTAL NODES</p>
+                  <h2 className="text-2xl font-black italic uppercase text-white tracking-tighter">Operative Hub</h2>
+                  <div className="flex items-center space-x-4">
+                     <div className="flex items-center space-x-3 bg-green-500/5 px-4 py-2 rounded-2xl border border-green-500/10">
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]"></span>
+                        <p className="text-[10px] text-green-400 font-black uppercase tracking-widest">{activeCount} LIVE</p>
+                     </div>
+                     <div className="flex items-center space-x-3 bg-red-500/5 px-4 py-2 rounded-2xl border border-red-500/10">
+                        <span className="w-2 h-2 rounded-full bg-red-600 shadow-[0_0_10px_#dc2626]"></span>
+                        <p className="text-[10px] text-red-500 font-black uppercase tracking-widest">{bannedCount} BANNED</p>
+                     </div>
+                  </div>
                </div>
+               
                <div className="grid grid-cols-1 gap-4 px-4">
                   <div className="bg-white/5 p-4 rounded-xl border border-white/5 grid grid-cols-6 text-[9px] font-black text-gray-600 uppercase tracking-widest px-8 mb-2">
                     <span className="col-span-2">Operative Identity</span>
-                    <span>Auth Provider / Phone</span>
-                    <span>Joined Date</span>
-                    <span className="text-right">NIB Balance</span>
+                    <span>Provider</span>
+                    <span>Joined Node</span>
+                    <span className="text-right">Liquidity</span>
                     <span className="text-right">Actions</span>
                   </div>
                   {operatives.map(op => (
-                    <div key={op.id} className="p-6 bg-[#0a0a0a] border border-white/5 rounded-[3rem] flex items-center justify-between group hover:border-yellow-400/20 transition-all shadow-xl">
+                    <div key={op.id} className={`p-6 bg-[#0a0a0a] border border-white/5 rounded-[3rem] flex items-center justify-between group transition-all shadow-xl hover:bg-white/[0.02] ${op.isBanned ? 'opacity-60 grayscale' : ''}`}>
                        <div className="flex items-center space-x-6 w-1/3">
-                          <div className={`w-14 h-14 hexagon p-0.5 ${op.isBanned ? 'bg-red-600' : 'bg-yellow-400/20 group-hover:bg-yellow-400'} transition-all shadow-glow shrink-0`}>
-                            <img src={op.avatarUrl} className={`w-full h-full hexagon object-cover ${op.isBanned ? 'grayscale' : 'grayscale group-hover:grayscale-0'}`} />
+                          <div className={`w-14 h-14 hexagon p-0.5 ${op.isBanned ? 'bg-red-600' : 'bg-yellow-400'}`}>
+                            <img src={op.avatarUrl} className="w-full h-full hexagon object-cover" />
                           </div>
                           <div className="truncate">
-                            <p className={`text-lg font-black uppercase truncate ${op.isBanned ? 'text-gray-600' : 'text-white'}`}>{op.displayName}</p>
-                            <p className="text-[10px] text-gray-600 font-mono truncate">{op.username || 'NO HANDLE'}</p>
+                            <p className="text-lg font-black uppercase text-white tracking-tighter truncate">{op.displayName}</p>
+                            <p className="text-[10px] text-gray-600 font-mono truncate">{op.username || op.email}</p>
                           </div>
                        </div>
                        <div className="w-1/6 text-center">
-                          <span className={`px-4 py-1.5 rounded-full border text-[9px] font-black uppercase ${op.loginMethod === 'phone' ? 'border-yellow-400/20 text-yellow-400' : 'border-blue-400/20 text-blue-400'}`}>
-                            {op.loginMethod === 'phone' ? (op.phone || 'Phone') : (op.loginMethod || 'Google/GH')}
+                          <span className={`px-4 py-1.5 rounded-full border text-[9px] font-black uppercase ${op.loginMethod === 'google' ? 'border-blue-500/20 text-blue-400' : op.loginMethod === 'github' ? 'border-white/20 text-white' : 'border-yellow-400/20 text-yellow-400'}`}>
+                            {op.loginMethod}
                           </span>
                        </div>
                        <div className="w-1/6 text-center">
                           <p className="text-[10px] text-gray-500 font-mono">{formatDate(op.registrationDate)}</p>
                        </div>
                        <div className="w-1/6 text-right">
-                          <p className={`text-xl font-black ${op.isBanned ? 'text-gray-700' : 'text-yellow-400'}`}>{op.walletBalance}</p>
-                          <p className="text-[9px] text-gray-700 font-black uppercase tracking-widest">NIB COINS</p>
+                          <p className="text-xl font-black text-yellow-400">{op.walletBalance} <span className="text-[10px] text-gray-600">NIB</span></p>
                        </div>
-                       <div className="w-1/6 text-right flex flex-col items-end space-y-2">
-                          <span className={`px-3 py-1 border rounded-full font-black text-[9px] uppercase tracking-widest ${op.isBanned ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-green-500/10 text-green-500 border-green-500/20'}`}>
-                            {op.isBanned ? 'Banned' : 'Active'}
-                          </span>
+                       <div className="w-1/6 text-right">
                           <button 
                             onClick={() => handleBanStatus(op.id, !op.isBanned)} 
-                            className={`px-4 py-1.5 rounded-xl text-[8px] font-black uppercase border transition-all ${op.isBanned ? 'bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500 hover:text-black' : 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500 hover:text-white'}`}
+                            className={`px-6 py-2 rounded-xl text-[9px] font-black uppercase border transition-all ${op.isBanned ? 'bg-green-600/10 border-green-500 text-green-500 hover:bg-green-600 hover:text-white' : 'bg-red-600/10 border-red-500 text-red-500 hover:bg-red-600 hover:text-white'}`}
                           >
-                            {op.isBanned ? 'Unban' : 'Ban Node'}
+                            {op.isBanned ? 'Unban' : 'Ban'}
                           </button>
                        </div>
                     </div>
                   ))}
-                  {operatives.length === 0 && <div className="text-center py-20 opacity-20 font-black uppercase tracking-widest">No nodes registered in the hive</div>}
+                  {operatives.length === 0 && <div className="text-center py-20 opacity-20 font-black uppercase tracking-widest">No nodes identified in the KV vault</div>}
                </div>
             </div>
           )}
@@ -197,70 +214,25 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
           {activeTab === 'vault' && (
             <div className="flex-1 p-10 space-y-12 overflow-y-auto custom-scrollbar">
                <div className="space-y-6">
-                 <div className="flex items-center justify-between px-4">
-                    <h2 className="text-2xl font-black italic uppercase text-white">Pending Signal Requests</h2>
-                    <p className="text-[10px] text-orange-400 font-black uppercase tracking-[0.2em]">{pendingPayments.length} AWAITING AUTHORIZATION</p>
-                 </div>
+                 <h2 className="text-2xl font-black italic uppercase text-white px-4 tracking-tighter">Pending Handshakes</h2>
                  <div className="space-y-4 px-4">
                     {pendingPayments.map(p => (
-                      <div key={p.id} className="bg-[#0a0a0a] border border-orange-400/20 p-8 rounded-[3rem] flex items-center justify-between shadow-2xl group hover:border-yellow-400/30 transition-all">
-                         <div className="space-y-2">
+                      <div key={p.id} className="bg-[#0a0a0a] border border-orange-400/20 p-8 rounded-[3rem] flex items-center justify-between shadow-2xl">
+                         <div className="space-y-1">
+                            <p className="text-[10px] text-gray-600 font-black uppercase tracking-widest">Requesting Operative:</p>
+                            <p className="text-xl font-black text-white uppercase italic tracking-tighter">{p.username}</p>
                             <div className="flex items-center space-x-3">
-                               <span className="text-[10px] text-orange-400 font-black uppercase tracking-[0.3em]">Incoming Request:</span>
-                               <span className="text-[10px] font-mono text-gray-500">{formatDate(p.timestamp)}</span>
-                            </div>
-                            <div className="flex flex-col space-y-1">
-                               <p className="text-2xl font-black text-white italic uppercase tracking-tighter">Who buying: {p.username}</p>
-                               <p className="text-lg font-black text-yellow-400 uppercase">Amount: {p.amount} NIB</p>
-                            </div>
-                            <div className="flex items-center space-x-4 mt-4">
-                               <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/10">
-                                  <p className="text-[10px] font-mono text-gray-400">Node ID: {p.userId.slice(0,16)}...</p>
-                               </div>
-                               <div className="px-4 py-2 bg-white/5 rounded-xl border border-white/10">
-                                  <p className="text-[10px] font-mono text-gray-500">METHOD: {p.method}</p>
-                               </div>
+                               <p className="text-2xl font-black text-yellow-400">{p.amount} NIB</p>
+                               <span className="text-[10px] text-gray-700 font-mono">[{formatDate(p.timestamp)}]</span>
                             </div>
                          </div>
                          <div className="flex space-x-4">
-                            <button onClick={() => handlePaymentAction(p.id, 'rejected')} className="px-10 py-5 bg-red-600/10 text-red-600 rounded-3xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all">Reject</button>
-                            <button onClick={() => handlePaymentAction(p.id, 'approved')} className="px-10 py-5 bg-yellow-400 text-black rounded-3xl text-[10px] font-black uppercase shadow-glow hover:scale-105 active:scale-95 transition-all">Authorize</button>
+                            <button onClick={() => handlePaymentAction(p.id, 'rejected')} className="px-10 py-5 bg-red-600/10 border border-red-500/20 text-red-500 rounded-3xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition-all">Reject</button>
+                            <button onClick={() => handlePaymentAction(p.id, 'approved')} className="px-10 py-5 bg-yellow-400 text-black rounded-3xl text-[10px] font-black uppercase shadow-glow hover:scale-105 transition-all">Approve</button>
                          </div>
                       </div>
                     ))}
-                    {pendingPayments.length === 0 && <div className="text-center py-12 bg-white/5 rounded-[3rem] border border-dashed border-white/10 opacity-30 font-black uppercase tracking-widest text-xs">No pending requests</div>}
-                 </div>
-               </div>
-
-               <div className="space-y-6">
-                 <div className="flex items-center justify-between px-4">
-                    <h2 className="text-xl font-black italic uppercase text-gray-500">Transaction Ledger</h2>
-                    <p className="text-[10px] text-gray-700 font-mono">ARCHIVED ACTIVITIES</p>
-                 </div>
-                 <div className="space-y-3 px-4 pb-20">
-                    {historyPayments.map(p => (
-                      <div key={p.id} className="p-6 bg-[#080808] border border-white/5 rounded-3xl flex items-center justify-between opacity-70 hover:opacity-100 transition-opacity">
-                         <div className="flex items-center space-x-8">
-                            <div className="w-10 h-10 hexagon bg-white/5 flex items-center justify-center">
-                              <i className={`fa-solid ${p.status === 'approved' ? 'fa-check text-green-500' : 'fa-xmark text-red-500'}`}></i>
-                            </div>
-                            <div>
-                               <p className="text-sm font-black text-white uppercase italic">{p.username}</p>
-                               <p className="text-[9px] text-gray-600 font-mono uppercase tracking-widest">{formatDate(p.timestamp)}</p>
-                            </div>
-                            <div className="text-center">
-                               <p className="text-xs font-black text-gray-400 uppercase tracking-tighter">{p.amount} NIB</p>
-                               <p className="text-[8px] text-gray-700 font-mono">{p.method}</p>
-                            </div>
-                         </div>
-                         <div>
-                            <span className={`px-4 py-1.5 rounded-full border text-[8px] font-black uppercase tracking-widest ${p.status === 'approved' ? 'border-green-500/20 text-green-500' : 'border-red-500/20 text-red-500'}`}>
-                              {p.status}
-                            </span>
-                         </div>
-                      </div>
-                    ))}
-                    {historyPayments.length === 0 && <div className="text-center py-10 opacity-10 uppercase font-black text-[10px] tracking-widest">History is empty</div>}
+                    {pendingPayments.length === 0 && <div className="text-center py-12 opacity-30 uppercase font-black tracking-widest text-xs border border-dashed border-white/10 rounded-[3rem]">No pending signal requests</div>}
                  </div>
                </div>
             </div>
@@ -268,16 +240,16 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
 
           {activeTab === 'war-room' && (
             <div className="flex-1 flex flex-col p-10 overflow-hidden">
-               <h2 className="text-xl font-black italic uppercase text-white mb-8">Signal Interception Feed</h2>
+               <h2 className="text-xl font-black italic uppercase text-white mb-8 tracking-tighter">Neural Signal Feed</h2>
                <div className="flex-1 bg-[#080808] border border-white/5 rounded-[3rem] p-8 overflow-y-auto custom-scrollbar flex flex-col-reverse shadow-inner">
                  <div ref={signalEndRef} />
                  <div className="space-y-4">
-                    {signals.map(sig => (
-                      <div key={sig.id} className="group flex items-start space-x-6 py-4 border-b border-white/5 hover:bg-white/[0.02] px-6 rounded-2xl transition-all">
-                        <span className="text-gray-700 text-[10px] shrink-0 font-mono w-24">[{new Date(sig.timestamp).toLocaleTimeString([], { hour12: false })}]</span>
+                    {signals.map((sig, idx) => (
+                      <div key={idx} className="group flex items-start space-x-6 py-4 border-b border-white/5">
+                        <span className="text-gray-700 text-[10px] font-mono shrink-0">[{new Date(sig.timestamp).toLocaleTimeString([], { hour12: false })}]</span>
                         <div className="flex-1 min-w-0">
                            <span className="text-white font-black text-[10px] uppercase tracking-tighter mr-3">{sig.sender}:</span>
-                           <span className="text-gray-500 text-[11px] leading-relaxed break-words">{sig.content}</span>
+                           <span className={`text-[11px] leading-relaxed break-words ${sig.type === 'ALERT' ? 'text-red-500' : 'text-gray-500'}`}>{sig.content}</span>
                         </div>
                       </div>
                     ))}

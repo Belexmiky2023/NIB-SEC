@@ -19,23 +19,28 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<Theme>('night');
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // CRITICAL: Persistence Logic for Global User Registry
-  const syncUserToGlobalRegistry = (userData: User) => {
+  // CRITICAL: Push User Data to Backend KV Store for Admin Visibility
+  const syncUserToGlobalRegistry = async (userData: User) => {
     try {
-      const adminOpsRaw = localStorage.getItem('nib_admin_ops');
-      let ops: User[] = adminOpsRaw ? JSON.parse(adminOpsRaw) : [];
+      // 1. Update Local Session for immediate UI responsiveness
+      localStorage.setItem('nib_sec_user_data', JSON.stringify(userData));
       
-      const existingIdx = ops.findIndex(o => o.id === userData.id);
-      if (existingIdx !== -1) {
-        ops[existingIdx] = { ...ops[existingIdx], ...userData };
+      // 2. Mandatory Push to Cloudflare Identity Bridge (/api/users)
+      console.log(`[AUTH_SYNC] Initiating backend handshake for operative: ${userData.id}`);
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+      });
+      
+      if (response.ok) {
+        console.log(`[AUTH_SYNC] Node connection established. Identity persisted in KV.`);
       } else {
-        ops.push(userData);
+        const errText = await response.text();
+        console.error(`[AUTH_SYNC] Identity vault rejected node: ${errText}`);
       }
-      
-      localStorage.setItem('nib_admin_ops', JSON.stringify(ops));
-      console.log(`[AUTH_SYNC] Persistent record updated for User: ${userData.id} (${userData.username || 'Pending Handle'})`);
     } catch (e) {
-      console.error('[AUTH_SYNC_ERROR] Failed to persist user record:', e);
+      console.error('[AUTH_SYNC_ERROR] Neural link failure during persistence:', e);
     }
   };
 
@@ -71,20 +76,6 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isInitialized) return;
 
-    // Heartbeat for ban status check and balance syncing
-    if (user && appState !== 'LOGIN' && appState !== 'ADMIN') {
-      const savedOps = localStorage.getItem('nib_admin_ops');
-      if (savedOps) {
-        const ops: User[] = JSON.parse(savedOps);
-        const latestInfo = ops.find(o => o.id === user.id);
-        if (latestInfo) {
-          if (latestInfo.isBanned !== user.isBanned || latestInfo.walletBalance !== user.walletBalance) {
-            setUser({ ...user, isBanned: latestInfo.isBanned, walletBalance: latestInfo.walletBalance });
-          }
-        }
-      }
-    }
-
     if (appState !== 'LOADING') {
       localStorage.setItem('nib_sec_app_state', appState);
       localStorage.setItem('nib_sec_theme_pref', theme);
@@ -112,9 +103,11 @@ const App: React.FC = () => {
         }
         
         const data = await response.json();
-        handleOAuthSuccess('google', data);
+        // Await synchronization to ensure data exists in KV before any other action
+        await handleOAuthSuccess('google', data);
       } else {
-        handleOAuthSuccess('github');
+        // Mock GitHub exchange for demonstration, ensuring it's also synced
+        await handleOAuthSuccess('github', { id: 'github_temp_' + Math.random().toString(36).substr(2, 5) });
       }
     } catch (error: any) {
       console.error('OAuth Error:', error);
@@ -125,24 +118,31 @@ const App: React.FC = () => {
     }
   };
 
-  const handleOAuthSuccess = (method: 'github' | 'google', externalData?: any) => {
+  const handleOAuthSuccess = async (method: 'github' | 'google', externalData: any) => {
+    // USE ACTUAL PROVIDER ID AS THE PRIMARY KEY FOR SHARED VISIBILITY
+    const userId = externalData?.id ? `${method}:${externalData.id}` : `${method}:${Math.random().toString(36).substr(2, 9)}`;
+    
     const mockUser: User = {
-      id: (method === 'github' ? 'gh-' : 'go-') + Math.random().toString(36).substr(2, 9),
-      username: externalData?.name ? `@${externalData.name.toLowerCase().replace(/\s/g, '_')}` : (method === 'github' ? '@gh_user' : '@google_operative'),
-      displayName: externalData?.name || (method === 'github' ? 'GitHub Operative' : 'Google Operative'),
-      email: externalData?.email || (method === 'github' ? 'dev@github.com' : 'user@gmail.com'),
+      id: userId,
+      username: externalData?.name ? `@${externalData.name.toLowerCase().replace(/\s/g, '_')}` : `@${method}_user`,
+      displayName: externalData?.name || `${method === 'github' ? 'GitHub' : 'Google'} Operative`,
+      email: externalData?.email || 'not-disclosed',
       avatarUrl: externalData?.picture || 'https://picsum.photos/200',
       isProfileComplete: false,
-      walletBalance: '0.00',
+      walletBalance: '0',
+      isBanned: false,
       loginMethod: method,
       registrationDate: Date.now()
     };
+
+    // Update state first for UI responsiveness
     setUser(mockUser);
-    syncUserToGlobalRegistry(mockUser);
+    // CRITICAL: Await sync to confirm KV storage
+    await syncUserToGlobalRegistry(mockUser);
     setAppState('SETUP');
   };
 
-  const handleLogin = (method: 'github' | 'phone' | 'google', val?: string) => {
+  const handleLogin = async (method: 'github' | 'phone' | 'google', val?: string) => {
     if (method === 'github') {
       const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&scope=user:email`;
       window.location.href = githubAuthUrl;
@@ -151,31 +151,31 @@ const App: React.FC = () => {
       window.location.href = googleAuthUrl;
     } else {
       setAppState('LOADING');
-      setTimeout(() => {
+      setTimeout(async () => {
         if (val === ADMIN_SECRET) {
-          console.log('[ADMIN] Overseer access granted.');
           setAppState('ADMIN');
           return;
         }
         const mockUser: User = {
-          id: 'u-' + Math.random().toString(36).substr(2, 9),
+          id: 'phone:' + val,
           username: '',
           displayName: '',
           phone: val,
           avatarUrl: 'https://picsum.photos/200',
           isProfileComplete: false,
-          walletBalance: '0.00',
+          walletBalance: '0',
+          isBanned: false,
           loginMethod: 'phone',
           registrationDate: Date.now()
         };
         setUser(mockUser);
-        syncUserToGlobalRegistry(mockUser);
+        await syncUserToGlobalRegistry(mockUser);
         setAppState('SETUP');
       }, 1500);
     }
   };
 
-  const handleSetupComplete = (username: string, avatar: string, displayName: string) => {
+  const handleSetupComplete = async (username: string, avatar: string, displayName: string) => {
     if (user) {
       const updatedUser = { 
         ...user, 
@@ -186,7 +186,8 @@ const App: React.FC = () => {
         registrationDate: user.registrationDate || Date.now() 
       };
       setUser(updatedUser);
-      syncUserToGlobalRegistry(updatedUser);
+      // Ensure profile updates are also reflected in the shared identity vault
+      await syncUserToGlobalRegistry(updatedUser);
 
       setAppState('LOADING');
       setTimeout(() => setAppState('MAIN'), 1500);
@@ -194,8 +195,6 @@ const App: React.FC = () => {
   };
 
   const handleSignOut = () => {
-    console.log('[SESSION] Terminating node connection.');
-    // CRITICAL FIX: Only remove session data, do NOT clear global registry
     localStorage.removeItem('nib_sec_user_data');
     localStorage.removeItem('nib_sec_app_state');
     setUser(null);
@@ -218,12 +217,6 @@ const App: React.FC = () => {
            <div className="space-y-4">
               <h1 className="text-6xl font-black italic uppercase text-white tracking-tighter">Access <span className="text-red-500">Denied</span></h1>
               <p className="text-gray-500 font-mono text-sm uppercase tracking-[0.4em]">Node Termination Protocol Active</p>
-           </div>
-           <div className="bg-red-500/10 border border-red-500/20 p-8 rounded-[3rem] max-w-lg mx-auto backdrop-blur-xl">
-              <p className="text-red-400 font-black uppercase text-xs leading-relaxed tracking-widest">
-                Your operative credentials have been revoked by the Overseer. 
-                Hive access is permanently restricted due to security violations.
-              </p>
            </div>
            <button onClick={handleSignOut} className="px-12 py-5 bg-white/5 border border-white/10 rounded-full text-xs font-black uppercase tracking-widest hover:bg-white hover:text-black transition-all">
              Exit Hive

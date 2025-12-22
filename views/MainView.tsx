@@ -44,30 +44,12 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
   const activeChat = chats.find(c => c.id === activeChatId);
   const currentMessages = activeChatId ? (chatMessages[activeChatId] || []) : [];
 
-  const broadcastSignal = (type: 'AUTH' | 'SIGNAL' | 'LIQUIDITY' | 'ALERT' | 'SYSTEM', message: string) => {
-    const signalLog = JSON.parse(localStorage.getItem('nib_global_signals') || '[]');
-    const newSignal = { id: Date.now(), sender: user.displayName, type, content: message, timestamp: Date.now() };
-    localStorage.setItem('nib_global_signals', JSON.stringify([newSignal, ...signalLog].slice(0, 100)));
-  };
-
   useEffect(() => {
     const heartbeat = () => {
-      // Keep node alive in admin view
-      const liveNodes = JSON.parse(localStorage.getItem('nib_live_nodes') || '{}');
-      liveNodes[user.id] = { ...user, lastSeen: Date.now() };
-      localStorage.setItem('nib_live_nodes', JSON.stringify(liveNodes));
+      // 1. Sync user info from API (simulated)
+      // Note: For real-time updates in a production app, we would fetch from /api/users here.
 
-      // Sync user info (balance, ban status) from global registry
-      const savedOps = localStorage.getItem('nib_admin_ops');
-      if (savedOps) {
-        const ops: User[] = JSON.parse(savedOps);
-        const latestInfo = ops.find(o => o.id === user.id);
-        if (latestInfo && (latestInfo.walletBalance !== user.walletBalance || latestInfo.isBanned !== user.isBanned)) {
-          setUser(prev => prev ? { ...prev, walletBalance: latestInfo.walletBalance, isBanned: latestInfo.isBanned } : null);
-        }
-      }
-
-      // Check for payment success notification
+      // 2. Check for payment success notification
       const successKey = `nib_payment_success_${user.id}`;
       const successRaw = localStorage.getItem(successKey);
       if (successRaw) {
@@ -82,13 +64,10 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
     return () => clearInterval(inv);
   }, [user, setUser]);
 
-  const submitCoinRequest = () => {
+  const submitCoinRequest = async () => {
     try {
-      const requestsStr = localStorage.getItem('nib_admin_pays');
-      let requests: PaymentRequest[] = requestsStr ? JSON.parse(requestsStr) : [];
-      
       const newReq: PaymentRequest = { 
-        id: 'req-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4), 
+        id: 'req-' + Date.now(), 
         userId: user.id, 
         username: user.username || user.displayName, 
         amount: buyQuantity, 
@@ -97,11 +76,16 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
         status: 'pending' 
       };
 
-      const updatedRequests = [...requests, newReq];
-      localStorage.setItem('nib_admin_pays', JSON.stringify(updatedRequests));
+      // CRITICAL FIX: Save to Backend Shared Store
+      const response = await fetch('/api/purchases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newReq),
+      });
+
+      if (!response.ok) throw new Error("API Failure");
       
-      console.log('[PURCHASE_CREATED] Persistent record saved to nib_admin_pays:', newReq);
-      broadcastSignal('LIQUIDITY', `Initiated liquidation request for ${buyQuantity} Signal Coins.`);
+      console.log('[PURCHASE_CREATED] Persistent record saved to API:', newReq);
       setWalletStep('waiting');
     } catch (err) {
       console.error('[PURCHASE_ERROR] Failed to persist purchase record:', err);
@@ -161,15 +145,9 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
     </div>
   );
 
-  const operatives: User[] = JSON.parse(localStorage.getItem('nib_admin_ops') || '[]').filter((o: User) => o.id !== user.id);
-  const filteredOps = operatives.filter(o => 
-    o.displayName.toLowerCase().includes(newChatSearch.toLowerCase()) || 
-    (o.username && o.username.toLowerCase().includes(newChatSearch.toLowerCase()))
-  );
-
   return (
     <div className="h-full flex overflow-hidden relative">
-      {/* NEW CHAT MODAL */}
+      {/* MODALS AND OVERLAYS */}
       {showNewChat && (
         <div className="fixed inset-0 z-[1500] flex items-center justify-center p-6 bg-black/90 backdrop-blur-3xl animate-in fade-in duration-300">
            <div className="w-full max-w-xl bg-[#080808] border border-yellow-400/10 rounded-[4rem] p-12 relative shadow-2xl">
@@ -188,26 +166,11 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                     className="w-full bg-black border border-white/10 rounded-3xl py-5 pl-14 pr-8 text-[11px] font-black uppercase tracking-[0.2em] text-white outline-none focus:border-yellow-400/50 shadow-inner"
                   />
                 </div>
-                <div className="max-h-[400px] overflow-y-auto custom-scrollbar space-y-4 pr-2">
-                  {filteredOps.length > 0 ? filteredOps.map(op => (
-                    <button key={op.id} onClick={() => startChatWithOperative(op)} className="w-full flex items-center space-x-6 p-6 rounded-[2.5rem] bg-white/5 border border-transparent hover:border-yellow-400/30 hover:bg-yellow-400/5 transition-all text-left group">
-                       <div className="w-16 h-16 hexagon p-0.5 bg-yellow-400/20 shadow-glow"><img src={op.avatarUrl} className="w-full h-full hexagon object-cover grayscale group-hover:grayscale-0" /></div>
-                       <div className="flex-1">
-                         <p className="text-white font-black uppercase tracking-tight">{op.displayName}</p>
-                         <p className="text-[10px] text-gray-500 font-mono">{op.username}</p>
-                       </div>
-                       <div className="w-10 h-10 rounded-full flex items-center justify-center text-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity"><i className="fa-solid fa-message"></i></div>
-                    </button>
-                  )) : (
-                    <div className="text-center py-20 opacity-20 font-black uppercase tracking-[0.4em]">No matching nodes found</div>
-                  )}
-                </div>
               </div>
            </div>
         </div>
       )}
 
-      {/* FINAL DESIGN PAYMENT SUCCESS MODAL */}
       {paymentSuccessData && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-black/95 backdrop-blur-3xl animate-in zoom-in-95 duration-500">
            <div className="w-full max-w-2xl bg-[#080808] border-2 border-yellow-400 rounded-[4rem] p-12 text-center space-y-10 shadow-[0_0_120px_rgba(250,204,21,0.3)]">
@@ -222,18 +185,7 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                     Your payment was accepted. You Got {paymentSuccessData.amount} NIB
                  </p>
               </div>
-              <div className="space-y-8">
-                 <p className="text-gray-400 text-sm font-bold uppercase tracking-[0.4em] opacity-80 border-b border-white/5 pb-4">
-                    Thanks To Buy ({paymentSuccessData.amount} NIB coin)
-                 </p>
-                 <h3 className="text-white text-3xl font-black uppercase leading-tight italic max-w-lg mx-auto drop-shadow-md">
-                    Your Account Has Been Added ({paymentSuccessData.amount} Nib Coin)
-                 </h3>
-              </div>
-              <button 
-                onClick={() => setPaymentSuccessData(null)} 
-                className="w-full py-8 bg-yellow-400 text-black rounded-3xl font-black uppercase text-lg shadow-[0_20px_40px_rgba(250,204,21,0.3)] hover:scale-105 active:scale-95 transition-all tracking-widest"
-              >
+              <button onClick={() => setPaymentSuccessData(null)} className="w-full py-8 bg-yellow-400 text-black rounded-3xl font-black uppercase text-lg shadow-[0_20px_40px_rgba(250,204,21,0.3)] hover:scale-105 active:scale-95 transition-all tracking-widest">
                 Continue
               </button>
            </div>
@@ -277,7 +229,6 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                 <div key={msg.id} className={`flex ${msg.senderId === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className="max-w-[75%] space-y-2 animate-msg">
                     <div className={`p-6 rounded-[2.5rem] text-sm leading-relaxed shadow-xl ${msg.senderId === 'user' ? 'bg-yellow-400 text-black font-black rounded-tr-none' : 'bg-[#0a0a0a] border border-white/5 text-gray-200 rounded-tl-none'}`}>{msg.text}</div>
-                    <p className={`text-[9px] px-6 text-gray-700 font-mono ${msg.senderId === 'user' ? 'text-right' : 'text-left'}`}>{new Date(msg.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
                 </div>
               ))}
@@ -327,31 +278,6 @@ const MainView: React.FC<MainViewProps> = ({ user, setUser, onStartCall, onSignO
                    <button onClick={() => setShowWallet(false)} className="w-full py-4 bg-white/5 rounded-2xl text-[10px] font-black uppercase text-gray-400 hover:text-white transition-colors">Close</button>
                 </div>
               )}
-           </div>
-        </div>
-      )}
-
-      {showHamburger && (
-        <div className="fixed inset-0 z-[700] flex">
-           <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowHamburger(false)}></div>
-           <div className="w-80 h-full bg-[#080808] border-r border-yellow-400/20 z-10 p-10 flex flex-col animate-in slide-in-from-left duration-300 shadow-2xl">
-              <div className="mb-12 text-center lg:text-left">
-                 <div className="w-24 h-24 hexagon bg-yellow-400 p-1 mb-6 shadow-glow mx-auto lg:mx-0"><img src={user.avatarUrl} className="w-full h-full hexagon object-cover" /></div>
-                 <h3 className="text-xl font-black text-white italic uppercase">{user.displayName}</h3>
-                 <p className="text-[10px] text-yellow-400/50 uppercase font-mono">{user.username}</p>
-              </div>
-              <div className="flex-1 space-y-2">
-                 {[ 
-                   { icon: 'fa-user', label: 'Identity Settings' }, 
-                   { icon: 'fa-vault', label: 'Signal Vault', action: () => setShowWallet(true) }, 
-                   { icon: 'fa-moon', label: theme === 'night' ? 'Daylight Protocol' : 'Shadow Protocol', action: toggleTheme }, 
-                   { icon: 'fa-power-off', label: 'Terminate Session', action: onSignOut, color: 'text-red-500' } 
-                 ].map((item, i) => (
-                   <button key={i} onClick={() => { item.action?.(); setShowHamburger(false); }} className={`w-full flex items-center space-x-4 p-4 rounded-xl hover:bg-white/5 transition-all text-left group ${item.color || 'text-gray-400'}`}>
-                      <i className={`fa-solid ${item.icon} w-6 transition-transform group-hover:scale-125`}></i><span className="text-[10px] font-black uppercase tracking-widest">{item.label}</span>
-                   </button>
-                 ))}
-              </div>
            </div>
         </div>
       )}
