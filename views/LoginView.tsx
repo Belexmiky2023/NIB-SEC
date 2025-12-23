@@ -27,9 +27,11 @@ interface LoginViewProps {
 
 const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [selectedCountry, setSelectedCountry] = useState<Country>(countries[0]);
   const [showCountryDropdown, setShowCountryDropdown] = useState(false);
-  const [isComingSoon, setIsComingSoon] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -55,7 +57,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     );
   }, [searchQuery]);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     // 1. Check for Admin Secret
     if (phoneNumber === ADMIN_SECRET) {
       onLogin('phone', phoneNumber);
@@ -65,85 +67,76 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     // 2. Validate Phone Node (Exactly 10 digits)
     const digitsOnly = phoneNumber.replace(/\D/g, '');
     if (digitsOnly.length === 10) {
-      setIsComingSoon(true);
+      setIsLoading(true);
+      try {
+        const response = await fetch('/api/request-verification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: digitsOnly }),
+        });
+        
+        if (response.ok) {
+          setIsVerifying(true);
+        } else {
+          alert("Signal request failed. Try again later.");
+        }
+      } catch (e) {
+        alert("Network error during handshake.");
+      } finally {
+        setIsLoading(false);
+      }
     } else {
-      // User requested specific message if not admin or valid 10-digit number
-      alert("Please enter Phone Number");
+      alert("Please enter a valid 10-digit Phone Number");
     }
   };
 
-  const onPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPhoneNumber(e.target.value);
+  const handleVerifyCode = async () => {
+    if (verificationCode.length !== 7) {
+      alert("Enter the 7-digit code from the Telegram Bot");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phoneNumber.replace(/\D/g, ''), code: verificationCode }),
+      });
+
+      if (response.ok) {
+        onLogin('phone', phoneNumber);
+      } else {
+        alert("Invalid or expired code. Request a new signal.");
+      }
+    } catch (e) {
+      alert("Verification signal failed.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-8 relative overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(250,204,21,0.03)_0%,_transparent_70%)]"></div>
 
-      {isComingSoon ? (
-        <div className="relative z-50 flex flex-col items-center justify-center animate-in zoom-in duration-500">
-           {/* Mascot: Bee holding a wooden plank */}
-           <div className="relative mb-16 bee-with-bar">
-              <div className="w-40 h-40 relative">
-                <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_20px_rgba(250,204,21,0.6)]">
-                  {/* Bee Body */}
-                  <circle cx="50" cy="50" r="25" fill="#facc15" />
-                  {/* Stripes */}
-                  <rect x="38" y="32" width="24" height="4" rx="2" fill="black" />
-                  <rect x="34" y="48" width="32" height="4" rx="2" fill="black" />
-                  <rect x="38" y="64" width="24" height="4" rx="2" fill="black" />
-                  {/* Eyes */}
-                  <circle cx="42" cy="42" r="3" fill="black" />
-                  <circle cx="58" cy="42" r="3" fill="black" />
-                  {/* Wings */}
-                  <ellipse cx="32" cy="38" rx="12" ry="16" fill="rgba(255,255,255,0.4)" transform="rotate(-20, 32, 38)" className="animate-pulse" />
-                  <ellipse cx="68" cy="38" rx="12" ry="16" fill="rgba(255,255,255,0.4)" transform="rotate(20, 68, 38)" className="animate-pulse" />
-                  {/* Arms holding the plank */}
-                  <path d="M40 65 Q 50 85 60 65" stroke="black" strokeWidth="3" fill="none" />
-                </svg>
-              </div>
-              
-              {/* Wooden Plank */}
-              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-80 h-24 bg-[#6d4c41] border-[8px] border-[#3e2723] rounded-sm flex items-center justify-center shadow-2xl origin-center rotate-[-2deg]">
-                 {/* Wood Grain Texture */}
-                 <div className="absolute inset-0 opacity-30 pointer-events-none" style={{
-                   backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 15px, rgba(0,0,0,0.2) 16px, transparent 17px)',
-                   backgroundSize: '100% 100%'
-                 }}></div>
-                 
-                 {/* Yellow Text */}
-                 <span className="text-yellow-400 font-black uppercase tracking-[0.5em] text-2xl italic drop-shadow-[0_4px_8px_rgba(0,0,0,1)]">Coming soon</span>
-                 
-                 {/* Nails */}
-                 <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-gray-400 shadow-inner"></div>
-                 <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-gray-400 shadow-inner"></div>
-                 <div className="absolute bottom-2 left-2 w-2 h-2 rounded-full bg-gray-400 shadow-inner"></div>
-                 <div className="absolute bottom-2 right-2 w-2 h-2 rounded-full bg-gray-400 shadow-inner"></div>
-              </div>
+      <div className="w-full max-w-md z-20 space-y-12">
+        <div className="text-center space-y-6">
+           <div className="w-32 h-32 bg-yellow-400 rounded-full mx-auto flex items-center justify-center border-[8px] border-black shadow-[0_0_50px_rgba(250,204,21,0.2)]">
+              <i className="fa-solid fa-bee text-black text-6xl"></i>
            </div>
-           
-           <button 
-             onClick={() => setIsComingSoon(false)} 
-             className="mt-32 px-12 py-5 bg-white/5 border border-white/10 text-gray-500 rounded-full text-[12px] font-black uppercase tracking-widest hover:bg-yellow-400 hover:text-black hover:border-yellow-400 transition-all active:scale-95 shadow-lg"
-           >
-             Return to Hive
-           </button>
+           <h1 className="text-6xl font-black tracking-tighter italic text-white leading-none">NIB <span className="text-yellow-400">SEC</span></h1>
         </div>
-      ) : (
-        <div className="w-full max-w-md z-20 space-y-12">
-          <div className="text-center space-y-6">
-             <div className="w-32 h-32 bg-yellow-400 rounded-full mx-auto flex items-center justify-center border-[8px] border-black shadow-[0_0_50px_rgba(250,204,21,0.2)]">
-                <i className="fa-solid fa-bee text-black text-6xl"></i>
-             </div>
-             <h1 className="text-6xl font-black tracking-tighter italic text-white leading-none">NIB <span className="text-yellow-400">SEC</span></h1>
+
+        <div className="bg-[#0c0c0c] border border-white/5 rounded-[3.5rem] p-10 space-y-8 relative shadow-2xl">
+          <div className="space-y-2">
+            <h2 className="text-3xl font-black text-white italic">{isVerifying ? "Verify Signal" : "Node Sign-in"}</h2>
+            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-700">
+              {isVerifying ? "Enter 7-Digit Archive Code" : "Identify Your Hive Access"}
+            </p>
           </div>
 
-          <div className="bg-[#0c0c0c] border border-white/5 rounded-[3.5rem] p-10 space-y-8 relative shadow-2xl">
-            <div className="space-y-2">
-              <h2 className="text-3xl font-black text-white italic">Node Sign-in</h2>
-              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-700">Identify Your Hive Access</p>
-            </div>
-
+          {!isVerifying ? (
             <div className="space-y-6">
               <div className="space-y-3">
                 <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest px-2">Phone Node (10 Digits)</label>
@@ -172,7 +165,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   <input 
                     type="text" 
                     value={phoneNumber} 
-                    onChange={onPhoneChange} 
+                    onChange={(e) => setPhoneNumber(e.target.value)} 
                     placeholder="912345678" 
                     className="flex-1 bg-transparent border-none outline-none py-4 px-4 text-white font-black text-lg tracking-widest" 
                   />
@@ -181,9 +174,10 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
               <button 
                 onClick={handleContinue} 
-                className="w-full py-6 bg-yellow-400 text-black rounded-3xl font-black uppercase tracking-widest text-xs hover:scale-105 active:scale-95 transition-all shadow-xl"
+                disabled={isLoading}
+                className="w-full py-6 bg-yellow-400 text-black rounded-3xl font-black uppercase tracking-widest text-xs hover:scale-105 active:scale-95 transition-all shadow-xl disabled:opacity-50"
               >
-                Continue
+                {isLoading ? "REQUESTING..." : "Continue"}
               </button>
 
               <div className="relative flex items-center justify-center py-2">
@@ -200,9 +194,53 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 </button>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+              <div className="bg-yellow-400/5 border border-yellow-400/20 p-6 rounded-3xl text-center space-y-4">
+                <p className="text-[11px] font-black text-yellow-400 uppercase tracking-widest leading-relaxed">
+                  Go to our Telegram Bot to receive your code:
+                </p>
+                <a 
+                  href="https://t.me/NibSecBot" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="inline-block px-6 py-2 bg-yellow-400 text-black rounded-xl text-[10px] font-black uppercase"
+                >
+                  <i className="fa-brands fa-telegram mr-2"></i>Open @NibSecBot
+                </a>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest px-2">Verification Code</label>
+                <input 
+                  type="text" 
+                  maxLength={7}
+                  value={verificationCode} 
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))} 
+                  placeholder="0000000" 
+                  className="w-full bg-black border border-white/5 rounded-3xl py-6 px-10 text-center text-white font-black text-4xl tracking-[0.2em] outline-none focus:border-yellow-400 transition-all" 
+                />
+              </div>
+
+              <div className="flex flex-col space-y-4">
+                <button 
+                  onClick={handleVerifyCode}
+                  disabled={isLoading || verificationCode.length !== 7}
+                  className="w-full py-6 bg-yellow-400 text-black rounded-3xl font-black uppercase tracking-widest text-xs hover:scale-105 active:scale-95 transition-all shadow-xl disabled:opacity-30 disabled:hover:scale-100"
+                >
+                  {isLoading ? "VERIFYING..." : "Verify Identity"}
+                </button>
+                <button 
+                  onClick={() => setIsVerifying(false)}
+                  className="w-full py-4 text-gray-600 hover:text-white transition-colors text-[9px] font-black uppercase tracking-[0.4em]"
+                >
+                  Edit Phone Node
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };

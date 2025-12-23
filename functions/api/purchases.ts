@@ -4,38 +4,40 @@ export async function onRequestGet(context: { env: any }) {
   const kv = env.DB || env.KV;
 
   if (!kv) {
-    console.error("KV Binding (DB or KV) not found in environment for purchases");
-    return new Response(JSON.stringify([]), {
-      status: 200,
+    return new Response(JSON.stringify({ error: "KV binding 'DB' not found" }), {
+      status: 500,
       headers: { "Content-Type": "application/json" },
     });
   }
 
   try {
-    const list = await kv.list({ prefix: "purchase:" });
     const purchases = [];
+    let cursor = undefined;
 
-    for (const key of list.keys) {
-      const val = await kv.get(key.name);
-      if (val) {
-        try {
-          purchases.push(JSON.parse(val));
-        } catch (e) {
-          console.error(`Failed to parse purchase data for key ${key.name}:`, e);
+    do {
+      const listResponse: any = await kv.list({ prefix: "purchase:", cursor });
+      for (const key of listResponse.keys) {
+        const value = await kv.get(key.name);
+        if (value) {
+          try {
+            purchases.push(JSON.parse(value));
+          } catch (e) {
+            console.error(`Ledger error at ${key.name}`);
+          }
         }
       }
-    }
+      cursor = listResponse.list_complete ? undefined : listResponse.cursor;
+    } while (cursor);
 
     return new Response(JSON.stringify(purchases), {
       headers: { 
         "Content-Type": "application/json",
-        "Cache-Control": "no-cache"
+        "Cache-Control": "no-store, no-cache, must-revalidate"
       },
     });
-  } catch (err) {
-    console.error("GET /api/purchases error:", err);
-    return new Response(JSON.stringify([]), {
-      status: 200,
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: "Vault access denied", details: err.message }), {
+      status: 500,
       headers: { "Content-Type": "application/json" },
     });
   }
@@ -46,33 +48,34 @@ export async function onRequestPost(context: { request: Request; env: any }) {
   const kv = env.DB || env.KV;
 
   if (!kv) {
-    return new Response(JSON.stringify({ error: "KV Binding not found" }), { 
+    return new Response(JSON.stringify({ error: "KV binding 'DB' not found" }), { 
       status: 500,
       headers: { "Content-Type": "application/json" }
     });
   }
 
   try {
-    const purchase = await request.json();
-    if (!purchase || !purchase.id) {
-      return new Response(JSON.stringify({ error: "Missing required purchase record ID" }), { 
+    const purchaseData = await request.json();
+    if (!purchaseData || !purchaseData.id) {
+      return new Response(JSON.stringify({ error: "Purchase record malformed: Missing ID" }), { 
         status: 400,
         headers: { "Content-Type": "application/json" }
       });
     }
 
-    // Prefix 'purchase:' for easy filtering and listing
-    await kv.put(`purchase:${purchase.id}`, JSON.stringify({
-      ...purchase,
-      processedAt: Date.now()
+    const key = `purchase:${purchaseData.id}`;
+    
+    // Register the handshake in the KV ledger
+    await kv.put(key, JSON.stringify({
+      ...purchaseData,
+      submittedAt: Date.now()
     }));
 
-    return new Response(JSON.stringify({ success: true, id: purchase.id }), {
+    return new Response(JSON.stringify({ success: true, record: key }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err: any) {
-    console.error("POST /api/purchases error:", err);
-    return new Response(JSON.stringify({ error: "Ledger update failure", details: err.message }), { 
+    return new Response(JSON.stringify({ error: "Ledger registration failure", details: err.message }), { 
       status: 500,
       headers: { "Content-Type": "application/json" }
     });

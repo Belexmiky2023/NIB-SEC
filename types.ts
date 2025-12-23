@@ -44,5 +44,13 @@ export interface Chat {
   isVerified?: boolean;
 }
 
+export interface CallRecord {
+  id: string;
+  contactName: string;
+  avatar: string;
+  timestamp: number;
+  duration: number;
+}
+
 export type AppState = 'LOGIN' | 'LOADING' | 'SETUP' | 'MAIN' | 'CALLING' | 'ADMIN';
 export type Theme = 'night' | 'light';

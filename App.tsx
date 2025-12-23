@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, AppState, Theme } from './types';
+import { User, AppState, Theme, Chat } from './types';
 import LoginView from './views/LoginView';
 import LoadingView from './views/LoadingView';
 import SetupView from './views/SetupView';
 import MainView from './views/MainView';
-import CallingView from './views/CallingView';
+// Fix: Explicitly import from the .tsx file to avoid conflict with the deprecated .ts module
+import CallingView from './views/CallingView.tsx';
 import AdminView from './views/AdminView';
 
 const GITHUB_CLIENT_ID = "Ov23liHIbFs3qWTJ0bez";
@@ -16,28 +17,21 @@ const ADMIN_SECRET = "https://nib-sec.pages.dev/";
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [appState, setAppState] = useState<AppState>('LOGIN');
+  const [activeCallContact, setActiveCallContact] = useState<Chat | null>(null);
   const [theme, setTheme] = useState<Theme>('night');
   const [isInitialized, setIsInitialized] = useState(false);
 
   // CRITICAL: Push User Data to Backend KV Store for Admin Visibility
   const syncUserToGlobalRegistry = async (userData: User) => {
     try {
-      // 1. Update Local Session for immediate UI responsiveness
       localStorage.setItem('nib_sec_user_data', JSON.stringify(userData));
-      
-      // 2. Mandatory Push to Cloudflare Identity Bridge (/api/users)
-      console.log(`[AUTH_SYNC] Initiating backend handshake for operative: ${userData.id}`);
       const response = await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData),
       });
-      
       if (response.ok) {
         console.log(`[AUTH_SYNC] Node connection established. Identity persisted in KV.`);
-      } else {
-        const errText = await response.text();
-        console.error(`[AUTH_SYNC] Identity vault rejected node: ${errText}`);
       }
     } catch (e) {
       console.error('[AUTH_SYNC_ERROR] Neural link failure during persistence:', e);
@@ -96,21 +90,13 @@ const App: React.FC = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code }),
         });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to exchange Google code');
-        }
-        
+        if (!response.ok) throw new Error('Google exchange failed');
         const data = await response.json();
-        // Await synchronization to ensure data exists in KV before any other action
         await handleOAuthSuccess('google', data);
       } else {
-        // Mock GitHub exchange for demonstration, ensuring it's also synced
         await handleOAuthSuccess('github', { id: 'github_temp_' + Math.random().toString(36).substr(2, 5) });
       }
     } catch (error: any) {
-      console.error('OAuth Error:', error);
       alert(`Authentication error: ${error.message}`);
       setAppState('LOGIN');
     } finally {
@@ -119,9 +105,7 @@ const App: React.FC = () => {
   };
 
   const handleOAuthSuccess = async (method: 'github' | 'google', externalData: any) => {
-    // USE ACTUAL PROVIDER ID AS THE PRIMARY KEY FOR SHARED VISIBILITY
     const userId = externalData?.id ? `${method}:${externalData.id}` : `${method}:${Math.random().toString(36).substr(2, 9)}`;
-    
     const mockUser: User = {
       id: userId,
       username: externalData?.name ? `@${externalData.name.toLowerCase().replace(/\s/g, '_')}` : `@${method}_user`,
@@ -134,10 +118,7 @@ const App: React.FC = () => {
       loginMethod: method,
       registrationDate: Date.now()
     };
-
-    // Update state first for UI responsiveness
     setUser(mockUser);
-    // CRITICAL: Await sync to confirm KV storage
     await syncUserToGlobalRegistry(mockUser);
     setAppState('SETUP');
   };
@@ -177,18 +158,9 @@ const App: React.FC = () => {
 
   const handleSetupComplete = async (username: string, avatar: string, displayName: string) => {
     if (user) {
-      const updatedUser = { 
-        ...user, 
-        username, 
-        avatarUrl: avatar, 
-        displayName, 
-        isProfileComplete: true,
-        registrationDate: user.registrationDate || Date.now() 
-      };
+      const updatedUser = { ...user, username, avatarUrl: avatar, displayName, isProfileComplete: true };
       setUser(updatedUser);
-      // Ensure profile updates are also reflected in the shared identity vault
       await syncUserToGlobalRegistry(updatedUser);
-
       setAppState('LOADING');
       setTimeout(() => setAppState('MAIN'), 1500);
     }
@@ -218,9 +190,7 @@ const App: React.FC = () => {
               <h1 className="text-6xl font-black italic uppercase text-white tracking-tighter">Access <span className="text-red-500">Denied</span></h1>
               <p className="text-gray-500 font-mono text-sm uppercase tracking-[0.4em]">Node Termination Protocol Active</p>
            </div>
-           <button onClick={handleSignOut} className="px-12 py-5 bg-white/5 border border-white/10 rounded-full text-xs font-black uppercase tracking-widest hover:bg-white hover:text-black transition-all">
-             Exit Hive
-           </button>
+           <button onClick={handleSignOut} className="px-12 py-5 bg-white/5 border border-white/10 rounded-full text-xs font-black uppercase tracking-widest hover:bg-white hover:text-black transition-all">Exit Hive</button>
         </div>
       </div>
     );
@@ -231,26 +201,29 @@ const App: React.FC = () => {
       {appState === 'LOGIN' && <LoginView onLogin={handleLogin} theme={theme} />}
       {appState === 'LOADING' && <LoadingView />}
       {appState === 'ADMIN' && <AdminView onExit={() => setAppState('LOGIN')} />}
-      {appState === 'SETUP' && user && (
-        <SetupView 
-          initialData={user} 
-          onComplete={handleSetupComplete} 
-        />
-      )}
+      {appState === 'SETUP' && user && <SetupView initialData={user} onComplete={handleSetupComplete} />}
       {appState === 'MAIN' && user && (
         <MainView 
           user={user}
           setUser={setUser}
-          onStartCall={() => setAppState('CALLING')} 
+          onStartCall={(contact) => {
+            setActiveCallContact(contact);
+            setAppState('CALLING');
+          }} 
           onSignOut={handleSignOut}
           theme={theme}
           toggleTheme={toggleTheme}
         />
       )}
       {appState === 'CALLING' && (
-        <CallingView onEndCall={() => setAppState('MAIN')} />
+        <CallingView 
+          contact={activeCallContact}
+          onEndCall={() => {
+            setActiveCallContact(null);
+            setAppState('MAIN');
+          }} 
+        />
       )}
-      
       <footer className="fixed bottom-4 w-full text-center text-[10px] text-gray-600 font-mono uppercase tracking-[0.3em] pointer-events-none z-0">
         © 2025 NIB SEC • SECURED COMMUNICATION • T.ME/NIBSEC
       </footer>
