@@ -1,10 +1,4 @@
 
-/**
- * NIB SEC - SQL Verification Protocol
- * 
- * Requirement: This worker utilizes Cloudflare D1 SQL database instead of KV.
- */
-
 export async function onRequestPost(context: { request: Request; env: any }) {
   const { request, env } = context;
   const db = env.DB;
@@ -34,9 +28,11 @@ export async function onRequestPost(context: { request: Request; env: any }) {
     }
 
     // Normalize phone node for lookup
-    let digitsOnly = phone.toString().replace(/\D/g, '');
-    if (digitsOnly.startsWith("0")) {
-      digitsOnly = "251" + digitsOnly.substring(1);
+    let normalizedPhone = phone.toString().trim();
+    if (normalizedPhone.startsWith("0")) {
+      normalizedPhone = "+251" + normalizedPhone.substring(1);
+    } else if (!normalizedPhone.startsWith("+")) {
+      normalizedPhone = "+" + normalizedPhone;
     }
 
     // 1. Fetch code from SQL and check expiration
@@ -44,7 +40,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
     const record: any = await db.prepare(
       "SELECT code FROM verification WHERE phone = ? AND expires_at > ?"
     )
-    .bind(digitsOnly, now)
+    .bind(normalizedPhone, now)
     .first();
 
     // 2. If record missing or expired
@@ -71,7 +67,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
 
     // 4. Security: Single-use enforcement (SQL Delete)
     await db.prepare("DELETE FROM verification WHERE phone = ?")
-      .bind(digitsOnly)
+      .bind(normalizedPhone)
       .run();
 
     // 5. Success

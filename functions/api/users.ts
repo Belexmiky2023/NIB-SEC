@@ -1,41 +1,34 @@
+
 export async function onRequestGet(context: { env: any }) {
   const { env } = context;
-  const kv = env.VERIFY_KV || env.DB || env.KV;
+  const db = env.DB;
   
-  if (!kv) {
-    return new Response(JSON.stringify({ error: "KV binding not found. Please bind your KV namespace to 'VERIFY_KV'." }), {
+  if (!db) {
+    return new Response(JSON.stringify({ error: "D1 Database binding 'DB' not found." }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
   }
 
   try {
-    const users = [];
-    let cursor = undefined;
+    const { results } = await db.prepare("SELECT * FROM users ORDER BY registrationDate DESC").all();
+    
+    // Ensure booleans are correctly typed as JS expects
+    const formattedResults = results.map((u: any) => ({
+      ...u,
+      isProfileComplete: Boolean(u.isProfileComplete),
+      isBanned: Boolean(u.isBanned),
+      isVerified: Boolean(u.isVerified)
+    }));
 
-    do {
-      const listResponse: any = await kv.list({ prefix: "user:", cursor });
-      for (const key of listResponse.keys) {
-        const value = await kv.get(key.name);
-        if (value) {
-          try {
-            users.push(JSON.parse(value));
-          } catch (e) {
-            console.error(`Corrupt node detected at ${key.name}`);
-          }
-        }
-      }
-      cursor = listResponse.list_complete ? undefined : listResponse.cursor;
-    } while (cursor);
-
-    return new Response(JSON.stringify(users), {
+    return new Response(JSON.stringify(formattedResults), {
       headers: { 
         "Content-Type": "application/json",
-        "Cache-Control": "no-store, no-cache, must-revalidate"
+        "Cache-Control": "no-store"
       },
     });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: "Failed to query identity vault", details: err.message }), {
+    return new Response(JSON.stringify({ error: "Identity vault query failure", details: err.message }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
@@ -44,35 +37,41 @@ export async function onRequestGet(context: { env: any }) {
 
 export async function onRequestPost(context: { request: Request; env: any }) {
   const { request, env } = context;
-  const kv = env.VERIFY_KV || env.DB || env.KV;
+  const db = env.DB;
 
-  if (!kv) {
-    return new Response(JSON.stringify({ error: "KV binding not found" }), { 
-      status: 500,
-      headers: { "Content-Type": "application/json" }
-    });
-  }
+  if (!db) return new Response(JSON.stringify({ error: "Database not found" }), { status: 500 });
 
   try {
-    const userData = await request.json();
-    if (!userData || !userData.id) {
-      return new Response(JSON.stringify({ error: "Node identification failed: Missing ID" }), { 
-        status: 400,
-        headers: { "Content-Type": "application/json" }
-      });
-    }
+    const u = await request.json();
+    if (!u || !u.id) return new Response(JSON.stringify({ error: "Missing ID" }), { status: 400 });
 
-    const key = `user:${userData.id}`;
-    await kv.put(key, JSON.stringify({
-      ...userData,
-      updatedAt: Date.now()
-    }));
+    await db.prepare(`
+      INSERT OR REPLACE INTO users 
+      (id, username, displayName, phone, email, avatarUrl, isProfileComplete, walletBalance, isBanned, isVerified, loginMethod, registrationDate, updatedAt) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    .bind(
+      u.id, 
+      u.username || null, 
+      u.displayName || null, 
+      u.phone || null, 
+      u.email || null, 
+      u.avatarUrl || null, 
+      u.isProfileComplete ? 1 : 0, 
+      u.walletBalance || '0', 
+      u.isBanned ? 1 : 0, 
+      u.isVerified ? 1 : 0, 
+      u.loginMethod || null, 
+      u.registrationDate || Date.now(), 
+      Date.now()
+    )
+    .run();
 
-    return new Response(JSON.stringify({ success: true, node: key }), {
+    return new Response(JSON.stringify({ success: true }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: "Identity persistence failure", details: err.message }), { 
+    return new Response(JSON.stringify({ error: "Persistence failure", details: err.message }), { 
       status: 500,
       headers: { "Content-Type": "application/json" }
     });

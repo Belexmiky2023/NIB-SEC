@@ -1,28 +1,32 @@
 
 export async function onRequestGet(context: { request: Request; env: any }) {
   const { request, env } = context;
-  const kv = env.VERIFY_KV || env.DB || env.KV;
+  const db = env.DB;
   const url = new URL(request.url);
   const userId = url.searchParams.get('id');
 
-  if (!kv) {
-    return new Response(JSON.stringify({ error: "KV not found" }), { status: 500 });
-  }
-
-  if (!userId) {
-    return new Response(JSON.stringify({ error: "Missing ID" }), { status: 400 });
-  }
+  if (!db) return new Response(JSON.stringify({ error: "Database not found" }), { status: 500 });
+  if (!userId) return new Response(JSON.stringify({ error: "Missing ID" }), { status: 400 });
 
   try {
-    const data = await kv.get(`user:${userId}`);
-    if (!data) {
+    const user: any = await db.prepare("SELECT * FROM users WHERE id = ?").bind(userId).first();
+    
+    if (!user) {
       return new Response(JSON.stringify({ error: "Node not found" }), { status: 404 });
     }
 
-    return new Response(data, {
+    // Cast SQL integer booleans back to JS booleans
+    const formatted = {
+      ...user,
+      isProfileComplete: Boolean(user.isProfileComplete),
+      isBanned: Boolean(user.isBanned),
+      isVerified: Boolean(user.isVerified)
+    };
+
+    return new Response(JSON.stringify(formatted), {
       headers: {
         "Content-Type": "application/json",
-        "Cache-Control": "no-store, no-cache, must-revalidate"
+        "Cache-Control": "no-store"
       },
     });
   } catch (err: any) {

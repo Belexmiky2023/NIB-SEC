@@ -11,7 +11,7 @@ const API_ENDPOINT = "https://nib-sec.pages.dev/api/check-phone";
 
 bot.start((ctx) => {
   ctx.reply(
-    "🔐 *NIB SEC Neural Handshake*\n\nPlease enter your phone number to receive your secure verification signal.\n\n💡 *Tip:* You can enter it in full (e.g., `2519...`) or just starting with 0 (e.g., `09...`).",
+    "🔐 *NIB SEC Neural Handshake*\n\nPlease enter your phone number to receive your secure verification signal.\n\n💡 *Tip:* You can enter it in full (e.g., `+2519...`) or starting with 0 (e.g., `09...`).",
     { parse_mode: "Markdown" }
   );
 });
@@ -19,21 +19,24 @@ bot.start((ctx) => {
 bot.on("text", async (ctx) => {
   let rawInput = ctx.message.text.trim();
   
-  // Normalize phone number logic
-  // Requirement 2: Add +251 if user types 09...
-  let phone = rawInput.replace(/\D/g, "");
+  // Normalization logic: Prepend +251 if user types 09...
+  let phone = rawInput;
   if (phone.startsWith("0")) {
-    phone = "251" + phone.substring(1);
+    phone = "+251" + phone.substring(1);
+  } else if (!phone.startsWith("+")) {
+    // Basic catch-all: if no +, add it (handles inputs like 2519...)
+    phone = "+" + phone.replace(/\D/g, "");
   }
 
-  if (phone.length < 9) {
+  // Length check (normalized)
+  if (phone.length < 10) {
     return ctx.reply(
-      "❌ *Signal Rejected: Invalid Phone Node*\n\nPlease provide a valid phone number with or without the country code.",
+      "❌ *Signal Rejected: Invalid Phone Node*\n\nPlease provide a valid phone number. Use international format if possible (e.g. +251...).",
       { parse_mode: "Markdown" }
     );
   }
 
-  const statusMsg = await ctx.reply("⏳ *Scanning KV Registry...*", { parse_mode: "Markdown" });
+  const statusMsg = await ctx.reply("⏳ *Scanning D1 Neural Registry...*", { parse_mode: "Markdown" });
 
   try {
     const response = await fetch(API_ENDPOINT, {
@@ -48,7 +51,7 @@ bot.on("text", async (ctx) => {
 
     if (!data.valid || !data.code) {
       return ctx.editMessageText(
-        "❌ *No Active Signal Found*\n\nPlease request a code in the NIB SEC app first using this phone node.",
+        "❌ *No Active Signal Found*\n\nPlease request a code in the NIB SEC app first using this phone node (" + phone + ").",
         { 
           parse_mode: "Markdown",
           ...Markup.inlineKeyboard([
@@ -59,7 +62,7 @@ bot.on("text", async (ctx) => {
     }
 
     await ctx.editMessageText(
-      `✅ *Verification Signal Received*\n\n🔢 *${data.code}*\n\nEnter this into your terminal now.`,
+      `✅ *Verification Signal Received*\n\n🔢 *${data.code}*\n\nEnter this into your terminal now for node ${phone}.`,
       { parse_mode: "Markdown" }
     );
 

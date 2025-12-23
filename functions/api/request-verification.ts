@@ -1,7 +1,7 @@
 
 export async function onRequestPost(context: { request: Request; env: any }) {
   const { request, env } = context;
-  const db = env.DB; // Assumes D1 binding name is DB
+  const db = env.DB; 
 
   if (!db) {
     return new Response(JSON.stringify({ error: "Database binding 'DB' not found" }), { 
@@ -12,18 +12,17 @@ export async function onRequestPost(context: { request: Request; env: any }) {
 
   try {
     const { phone } = await request.json();
-    let digitsOnly = phone?.toString().replace(/\D/g, '');
-
-    if (!digitsOnly || digitsOnly.length < 9) {
-      return new Response(JSON.stringify({ error: "Invalid phone node length" }), { 
-        status: 400,
-        headers: { "Content-Type": "application/json" }
-      });
+    if (!phone) {
+      return new Response(JSON.stringify({ error: "Missing phone input" }), { status: 400 });
     }
 
-    // Phone Normalization: Prepend 251 if starts with 0
-    if (digitsOnly.startsWith("0")) {
-      digitsOnly = "251" + digitsOnly.substring(1);
+    // Phone Normalization: Prepend +251 if starts with 0
+    let normalizedPhone = phone.toString().trim();
+    if (normalizedPhone.startsWith("0")) {
+      normalizedPhone = "+251" + normalizedPhone.substring(1);
+    } else if (!normalizedPhone.startsWith("+")) {
+      // If it doesn't start with +, assume it needs international prefix
+      normalizedPhone = "+" + normalizedPhone;
     }
 
     // Generate random 7-digit numeric code
@@ -36,7 +35,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
     await db.prepare(
       "INSERT OR REPLACE INTO verification (phone, code, expires_at) VALUES (?, ?, ?)"
     )
-    .bind(digitsOnly, code, expiresAt)
+    .bind(normalizedPhone, code, expiresAt)
     .run();
 
     return new Response(JSON.stringify({ ok: true }), {

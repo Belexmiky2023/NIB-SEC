@@ -57,28 +57,28 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   }, [searchQuery]);
 
   const getFullNormalizedPhone = () => {
-    return (selectedCountry.code + phoneNumber).replace(/\D/g, '');
+    // Keep the '+' sign for backend normalization parity
+    const cleanNumber = phoneNumber.replace(/\D/g, '');
+    return selectedCountry.code + cleanNumber;
   };
 
   const handleContinue = async () => {
-    // 1. Check for Admin Secret
     if (phoneNumber === ADMIN_SECRET) {
       onLogin('phone', phoneNumber);
       return;
     }
     
-    // 2. Validate Phone Node (Allowing 9 to 15 digits)
-    const digitsOnly = getFullNormalizedPhone();
-    if (digitsOnly.length >= 9 && digitsOnly.length <= 15) {
+    const fullPhone = getFullNormalizedPhone();
+    // Validate length (code + number)
+    if (fullPhone.length >= 10 && fullPhone.length <= 16) {
       setIsLoading(true);
       try {
         const response = await fetch('/api/request-verification', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: digitsOnly }),
+          body: JSON.stringify({ phone: fullPhone }),
         });
         
-        // Ensure transition only if API responds with success
         if (response.ok) {
           setIsVerifying(true);
         } else {
@@ -102,16 +102,16 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     }
 
     setIsLoading(true);
-    const digitsOnly = getFullNormalizedPhone();
+    const fullPhone = getFullNormalizedPhone();
     try {
       const response = await fetch('/api/verify-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: digitsOnly, code: verificationCode }),
+        body: JSON.stringify({ phone: fullPhone, code: verificationCode }),
       });
 
       if (response.ok) {
-        onLogin('phone', digitsOnly);
+        onLogin('phone', fullPhone);
       } else {
         const data = await response.json().catch(() => ({ error: "Handshake rejected" }));
         alert(data.error || "Invalid or expired code. Request a new signal.");
