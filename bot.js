@@ -6,32 +6,34 @@ dotenv.config();
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
+// Signal checking endpoint
 const API_ENDPOINT = "https://nib-sec.pages.dev/api/check-phone";
 
-// Start command
 bot.start((ctx) => {
   ctx.reply(
-    "🔐 NIB SEC Verification\n\nPlease enter your phone number to continue."
+    "🔐 *NIB SEC Neural Handshake*\n\nPlease enter your phone number to receive your secure verification signal.\n\n💡 *Tip:* You can enter it in full (e.g., `2519...`) or just starting with 0 (e.g., `09...`).",
+    { parse_mode: "Markdown" }
   );
 });
 
-// Handle phone number input
 bot.on("text", async (ctx) => {
-  const rawInput = ctx.message.text;
-  const phone = rawInput.replace(/\D/g, "");
+  let rawInput = ctx.message.text.trim();
+  
+  // Normalize phone number logic
+  // Requirement 2: Add +251 if user types 09...
+  let phone = rawInput.replace(/\D/g, "");
+  if (phone.startsWith("0")) {
+    phone = "251" + phone.substring(1);
+  }
 
-  // Basic validation
-  if (phone.length < 8) {
+  if (phone.length < 9) {
     return ctx.reply(
-      "❌ Invalid Phone Number",
-      Markup.inlineKeyboard([
-        Markup.button.url("Support Team", "https://t.me/oryn179"),
-      ])
+      "❌ *Signal Rejected: Invalid Phone Node*\n\nPlease provide a valid phone number with or without the country code.",
+      { parse_mode: "Markdown" }
     );
   }
 
-  // Checking message
-  await ctx.reply("⏳ Checking...");
+  const statusMsg = await ctx.reply("⏳ *Scanning KV Registry...*", { parse_mode: "Markdown" });
 
   try {
     const response = await fetch(API_ENDPOINT, {
@@ -40,35 +42,31 @@ bot.on("text", async (ctx) => {
       body: JSON.stringify({ phone }),
     });
 
-    if (!response.ok) {
-      throw new Error("API failure");
-    }
+    if (!response.ok) throw new Error("API Offline");
 
     const data = await response.json();
 
-    // No code exists
     if (!data.valid || !data.code) {
-      return ctx.reply(
-        "❌ Invalid Phone Number",
-        Markup.inlineKeyboard([
-          Markup.button.url("Support Team", "https://t.me/oryn179"),
-        ])
+      return ctx.editMessageText(
+        "❌ *No Active Signal Found*\n\nPlease request a code in the NIB SEC app first using this phone node.",
+        { 
+          parse_mode: "Markdown",
+          ...Markup.inlineKeyboard([
+            Markup.button.url("Support Channel", "https://t.me/nibsec"),
+          ])
+        }
       );
     }
 
-    // Send verification code
-    await ctx.reply(
-      `✅ Verification Code\n\n🔢 *${data.code}*`,
+    await ctx.editMessageText(
+      `✅ *Verification Signal Received*\n\n🔢 *${data.code}*\n\nEnter this into your terminal now.`,
       { parse_mode: "Markdown" }
     );
 
   } catch (error) {
-    console.error(error);
-    ctx.reply("⚠️ Verification service temporarily unavailable.");
+    ctx.editMessageText("⚠️ *Neural Link Interrupted*\nVerification service is temporarily unavailable. Please try again later.", { parse_mode: "Markdown" });
   }
 });
 
-// Launch bot
 bot.launch();
-
-console.log("NIB SEC verification bot is running.");
+console.log("NIB SEC bot active.");

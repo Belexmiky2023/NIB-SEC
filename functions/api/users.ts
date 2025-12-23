@@ -1,11 +1,9 @@
-
 export async function onRequestGet(context: { env: any }) {
   const { env } = context;
-  // Prioritize 'DB' as the primary binding name for the KV hive
-  const kv = env.DB || env.KV;
+  const kv = env.VERIFY_KV || env.DB || env.KV;
   
   if (!kv) {
-    return new Response(JSON.stringify({ error: "KV binding 'DB' not bound in Cloudflare dashboard" }), {
+    return new Response(JSON.stringify({ error: "KV binding not found. Please bind your KV namespace to 'VERIFY_KV'." }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
@@ -15,8 +13,6 @@ export async function onRequestGet(context: { env: any }) {
     const users = [];
     let cursor = undefined;
 
-    // Use a loop to handle KV pagination (limit is 1000 per list call)
-    // This ensures the Overseer sees EVERY user, even as the hive grows
     do {
       const listResponse: any = await kv.list({ prefix: "user:", cursor });
       for (const key of listResponse.keys) {
@@ -48,10 +44,10 @@ export async function onRequestGet(context: { env: any }) {
 
 export async function onRequestPost(context: { request: Request; env: any }) {
   const { request, env } = context;
-  const kv = env.DB || env.KV;
+  const kv = env.VERIFY_KV || env.DB || env.KV;
 
   if (!kv) {
-    return new Response(JSON.stringify({ error: "KV binding 'DB' not found" }), { 
+    return new Response(JSON.stringify({ error: "KV binding not found" }), { 
       status: 500,
       headers: { "Content-Type": "application/json" }
     });
@@ -66,10 +62,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       });
     }
 
-    // Force a consistent key format for listing
     const key = `user:${userData.id}`;
-    
-    // Persist user with updated timestamp for sorting in Overseer
     await kv.put(key, JSON.stringify({
       ...userData,
       updatedAt: Date.now()

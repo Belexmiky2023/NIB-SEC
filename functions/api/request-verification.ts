@@ -1,10 +1,10 @@
 
 export async function onRequestPost(context: { request: Request; env: any }) {
   const { request, env } = context;
-  const kv = env.KV || env.VERIFY_KV || env.DB;
+  const kv = env.VERIFY_KV || env.KV || env.DB;
 
   if (!kv) {
-    return new Response(JSON.stringify({ error: "KV binding not found" }), { 
+    return new Response(JSON.stringify({ error: "KV binding 'VERIFY_KV' not found" }), { 
       status: 500,
       headers: { "Content-Type": "application/json" }
     });

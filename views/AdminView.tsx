@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, PaymentRequest } from '../types';
 
@@ -76,7 +75,7 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
 
   const handleBanToggle = async (op: User, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (isProcessing) return; // Prevent double trigger
+    if (isProcessing) return;
     setIsProcessing(op.id);
     
     const updatedStatus = !op.isBanned;
@@ -141,7 +140,6 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
   return (
     <div className="h-full flex flex-col bg-[#050505] text-white font-mono selection:bg-yellow-400 selection:text-black relative">
       
-      {/* GLOBAL TOAST */}
       {toast && (
         <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[3000] px-8 py-4 rounded-2xl border flex items-center space-x-4 animate-in slide-in-from-top-4 shadow-2xl backdrop-blur-3xl ${toast.type === 'success' ? 'bg-green-600/10 border-green-500/50 text-green-500' : 'bg-red-600/10 border-red-500/50 text-red-500'}`}>
            <i className={`fa-solid ${toast.type === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation'}`}></i>
@@ -149,7 +147,6 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
         </div>
       )}
 
-      {/* OPERATIVE DETAIL MODAL */}
       {selectedOp && (
         <div className="fixed inset-0 z-[2500] flex items-center justify-center p-6 bg-black/95 backdrop-blur-2xl animate-in fade-in duration-300">
           <div className="w-full max-w-2xl bg-[#080808] border border-white/10 rounded-[3rem] p-10 relative shadow-[0_0_100px_rgba(0,0,0,1)] overflow-hidden">
@@ -206,7 +203,6 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
         </div>
       )}
 
-      {/* HEADER */}
       <header className="h-20 bg-black/80 backdrop-blur-xl border-b border-white/5 px-10 flex items-center justify-between shrink-0">
         <div className="flex items-center space-x-10">
           <div className="flex items-center space-x-4">
@@ -324,24 +320,43 @@ const AdminView: React.FC<AdminViewProps> = ({ onExit }) => {
 
         {activeTab === 'war-room' && (
           <div className="h-full flex flex-col p-10 overflow-hidden">
-            <h2 className="text-xl font-black italic uppercase text-white mb-8 tracking-tighter flex items-center">
-               <i className="fa-solid fa-tower-broadcast mr-3 text-yellow-400 animate-pulse"></i> Neural Feed
-            </h2>
-            <div className="flex-1 bg-black/40 border border-white/5 rounded-[3.5rem] p-10 overflow-y-auto custom-scrollbar shadow-inner relative">
-               <div className="space-y-4">
-                  {signals.map((sig, idx) => (
-                    <div key={sig.id || idx} className="group flex items-start space-x-6 py-4 border-b border-white/[0.03] animate-in slide-in-from-left-4 duration-300">
-                      <span className="text-gray-800 text-[10px] font-mono shrink-0">[{new Date(sig.timestamp).toLocaleTimeString([], { hour12: false })}]</span>
-                      <div className="flex-1 min-w-0">
-                         <span className={`font-black text-[10px] uppercase tracking-tighter mr-3 ${sig.type === 'ALERT' ? 'text-red-500' : sig.type === 'LIQUIDITY' ? 'text-yellow-400' : 'text-blue-400'}`}>{sig.sender}:</span>
-                         <span className={`text-[11px] leading-relaxed ${sig.type === 'ALERT' ? 'text-red-400 font-bold' : 'text-gray-400'}`}>{sig.content}</span>
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-xl font-black italic uppercase text-white tracking-tighter flex items-center">
+                 <i className="fa-solid fa-tower-broadcast mr-3 text-yellow-400 animate-pulse"></i> Neural Feed
+              </h2>
+              <div className="flex items-center space-x-2 px-4 py-2 bg-yellow-400/5 rounded-full border border-yellow-400/20">
+                 <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-ping"></div>
+                 <span className="text-[8px] font-black uppercase text-yellow-400 tracking-[0.3em]">Listening for signals</span>
+              </div>
+            </div>
+            
+            <div className="flex-1 bg-black/40 border border-white/5 rounded-[3.5rem] p-10 overflow-y-auto custom-scrollbar shadow-inner relative flex flex-col">
+               {signals.length > 0 ? (
+                 <div className="space-y-4">
+                    {signals.map((sig, idx) => (
+                      <div key={sig.id || idx} className="group flex items-start space-x-6 py-4 border-b border-white/[0.03] animate-in slide-in-from-left-4 duration-300">
+                        <span className="text-gray-800 text-[10px] font-mono shrink-0">[{new Date(sig.timestamp).toLocaleTimeString([], { hour12: false })}]</span>
+                        <div className="flex-1 min-w-0">
+                           <span className={`font-black text-[10px] uppercase tracking-tighter mr-3 ${sig.type === 'ALERT' ? 'text-red-500' : sig.type === 'LIQUIDITY' ? 'text-yellow-400' : 'text-blue-400'}`}>{sig.sender}:</span>
+                           <span className={`text-[11px] leading-relaxed ${sig.type === 'ALERT' ? 'text-red-400 font-bold' : 'text-gray-400'}`}>{sig.content}</span>
+                        </div>
+                        {sig.delta && <span className="text-[10px] font-black text-yellow-400 bg-yellow-400/5 px-2 py-0.5 rounded border border-yellow-400/10">{sig.delta}</span>}
                       </div>
-                      {sig.delta && <span className="text-[10px] font-black text-yellow-400 bg-yellow-400/5 px-2 py-0.5 rounded border border-yellow-400/10">{sig.delta}</span>}
+                    ))}
+                    <div ref={warRoomEndRef}></div>
+                 </div>
+               ) : (
+                 <div className="flex-1 flex flex-col items-center justify-center space-y-8 animate-pulse">
+                    <div className="w-32 h-32 rounded-full border-2 border-dashed border-yellow-400/20 flex items-center justify-center relative">
+                       <i className="fa-solid fa-microchip text-6xl text-yellow-400/20"></i>
+                       <div className="absolute inset-0 border-2 border-yellow-400/40 rounded-full animate-ping scale-75"></div>
                     </div>
-                  ))}
-                  {signals.length === 0 && <div className="h-full flex flex-col items-center justify-center opacity-10 uppercase font-black text-xs tracking-widest"><i className="fa-solid fa-microchip text-6xl mb-6"></i>Listening for Neural Signals...</div>}
-                  <div ref={warRoomEndRef}></div>
-               </div>
+                    <div className="text-center space-y-2">
+                       <h3 className="text-xs font-black uppercase text-gray-700 tracking-[0.6em]">Waiting for Signal</h3>
+                       <p className="text-[8px] font-black uppercase text-gray-800 tracking-widest">Awaiting neural handshake from hive operatives</p>
+                    </div>
+                 </div>
+               )}
             </div>
           </div>
         )}

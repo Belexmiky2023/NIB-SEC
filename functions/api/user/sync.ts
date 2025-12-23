@@ -1,7 +1,7 @@
 
 export async function onRequestGet(context: { request: Request; env: any }) {
   const { request, env } = context;
-  const kv = env.DB || env.KV;
+  const kv = env.VERIFY_KV || env.DB || env.KV;
   const url = new URL(request.url);
   const userId = url.searchParams.get('id');
 

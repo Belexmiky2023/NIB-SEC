@@ -1,10 +1,9 @@
-
 export async function onRequestGet(context: { env: any }) {
   const { env } = context;
-  const kv = env.DB || env.KV;
+  const kv = env.VERIFY_KV || env.DB || env.KV;
 
   if (!kv) {
-    return new Response(JSON.stringify({ error: "KV binding 'DB' not found" }), {
+    return new Response(JSON.stringify({ error: "KV binding not found" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
@@ -45,10 +44,10 @@ export async function onRequestGet(context: { env: any }) {
 
 export async function onRequestPost(context: { request: Request; env: any }) {
   const { request, env } = context;
-  const kv = env.DB || env.KV;
+  const kv = env.VERIFY_KV || env.DB || env.KV;
 
   if (!kv) {
-    return new Response(JSON.stringify({ error: "KV binding 'DB' not found" }), { 
+    return new Response(JSON.stringify({ error: "KV binding not found" }), { 
       status: 500,
       headers: { "Content-Type": "application/json" }
     });
@@ -64,8 +63,6 @@ export async function onRequestPost(context: { request: Request; env: any }) {
     }
 
     const key = `purchase:${purchaseData.id}`;
-    
-    // Register the handshake in the KV ledger
     await kv.put(key, JSON.stringify({
       ...purchaseData,
       submittedAt: Date.now()

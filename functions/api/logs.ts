@@ -1,7 +1,6 @@
-
 export async function onRequestGet(context: { env: any }) {
   const { env } = context;
-  const kv = env.DB || env.KV;
+  const kv = env.VERIFY_KV || env.DB || env.KV;
 
   if (!kv) {
     return new Response(JSON.stringify({ error: "KV not found" }), { status: 500 });
@@ -11,7 +10,6 @@ export async function onRequestGet(context: { env: any }) {
     const logs = [];
     const listResponse = await kv.list({ prefix: "log:", limit: 100 });
     
-    // Sort keys to get latest first if possible, or just fetch and sort
     for (const key of listResponse.keys) {
       const value = await kv.get(key.name);
       if (value) {
@@ -19,7 +17,6 @@ export async function onRequestGet(context: { env: any }) {
       }
     }
 
-    // Sort by timestamp descending
     logs.sort((a, b) => b.timestamp - a.timestamp);
 
     return new Response(JSON.stringify(logs), {
@@ -35,7 +32,7 @@ export async function onRequestGet(context: { env: any }) {
 
 export async function onRequestPost(context: { request: Request; env: any }) {
   const { request, env } = context;
-  const kv = env.DB || env.KV;
+  const kv = env.VERIFY_KV || env.DB || env.KV;
 
   if (!kv) return new Response(JSON.stringify({ error: "KV not found" }), { status: 500 });
 

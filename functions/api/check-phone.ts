@@ -1,14 +1,15 @@
+
 export async function onRequestPost(context: { request: Request; env: any }) {
   const { request, env } = context;
   const kv = env.VERIFY_KV || env.DB || env.KV;
 
   if (!kv) {
-    return new Response(JSON.stringify({ error: "KV binding not found" }), { status: 500 });
+    return new Response(JSON.stringify({ error: "KV binding 'VERIFY_KV' not found" }), { status: 500 });
   }
 
   try {
     const { phone } = await request.json();
-    const digitsOnly = phone?.replace(/\D/g, '');
+    const digitsOnly = phone?.toString().replace(/\D/g, '');
 
     if (!digitsOnly) {
       return new Response(JSON.stringify({ valid: false, error: "Missing phone" }), { 
@@ -17,8 +18,9 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       });
     }
 
-    // Match the new 'verify:' prefix and JSON structure
-    const storedValue = await kv.get(`verify:${digitsOnly}`);
+    // Match the 'verify:' prefix and JSON structure
+    const key = `verify:${digitsOnly}`;
+    const storedValue = await kv.get(key);
 
     if (storedValue) {
       try {
@@ -27,7 +29,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
           headers: { "Content-Type": "application/json" },
         });
       } catch (e) {
-        return new Response(JSON.stringify({ valid: false, error: "Malformed record" }), { status: 500 });
+        return new Response(JSON.stringify({ valid: false, error: "Malformed record in registry" }), { status: 500 });
       }
     } else {
       return new Response(JSON.stringify({ valid: false }), {
@@ -35,7 +37,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       });
     }
   } catch (err: any) {
-    return new Response(JSON.stringify({ valid: false, error: "Server error" }), { 
+    return new Response(JSON.stringify({ valid: false, error: "Signal processing failure" }), { 
       status: 500,
       headers: { "Content-Type": "application/json" }
     });
