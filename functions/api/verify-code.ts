@@ -1,20 +1,27 @@
+
 /**
  * NIB SEC - Verification Signal Endpoint
  * 
- * Deployment Instructions for wrangler.toml:
- * [[kv_namespaces]]
- * binding = "VERIFY_KV"
- * id = "f39c6a86088a4f81ad60540ed3ce5602"
+ * wrangler.jsonc / wrangler.toml binding example:
+ * {
+ *   "kv_namespaces": [
+ *     {
+ *       "binding": "KV",
+ *       "id": "f39c6a86088a4f81ad60540ed3ce5602"
+ *     }
+ *   ]
+ * }
  */
 
 export async function onRequestPost(context: { request: Request; env: any }) {
   const { request, env } = context;
-  const kv = env.VERIFY_KV;
+  
+  // Per requirement: KV binding variable in Worker is 'KV'
+  const kv = env.KV;
 
-  // 1. Validate environment configuration
   if (!kv) {
     return new Response(
-      JSON.stringify({ error: "KV binding 'VERIFY_KV' is not configured in the environment." }), 
+      JSON.stringify({ error: "KV binding 'KV' not found. Check your wrangler configuration." }), 
       { 
         status: 500,
         headers: { "Content-Type": "application/json" }
@@ -23,13 +30,14 @@ export async function onRequestPost(context: { request: Request; env: any }) {
   }
 
   try {
-    // 2. Extract and validate request body
+    // 1. Accept only POST requests with JSON body
     const body: any = await request.json().catch(() => ({}));
     const { phone, code } = body;
 
+    // 2. Validate inputs; return HTTP 400 if missing
     if (!phone || !code) {
       return new Response(
-        JSON.stringify({ error: "Missing required parameters: phone or code." }), 
+        JSON.stringify({ error: "Missing required parameters: phone and code are mandatory." }), 
         { 
           status: 400,
           headers: { "Content-Type": "application/json" }
@@ -37,13 +45,14 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       );
     }
 
-    // 3. Normalize phone number for consistent lookup
-    const digitsOnly = phone.replace(/\D/g, '');
+    // Normalize phone (strip non-digits) to ensure lookup consistency
+    const digitsOnly = phone.toString().replace(/\D/g, '');
     const key = `verify:${digitsOnly}`;
 
-    // 4. Retrieve stored signal from KV
+    // 3. Read KV to get stored code
     const storedValue = await kv.get(key);
 
+    // 4. If KV key not found, return HTTP 401 with specific error
     if (!storedValue) {
       return new Response(
         JSON.stringify({ error: "Code expired or not found" }), 
@@ -54,15 +63,15 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       );
     }
 
-    // 5. Parse stored JSON payload safely
+    // 5. Handle malformed KV values gracefully
     let parsed: { code: string };
     try {
       parsed = JSON.parse(storedValue);
     } catch (e) {
-      // In case of malformed data, treat as internal error and purge the record
+      // If the data is corrupt, delete it and ask for a retry
       await kv.delete(key);
       return new Response(
-        JSON.stringify({ error: "Internal registry corruption. Please request a new code." }), 
+        JSON.stringify({ error: "Internal registry error. Please request a new signal." }), 
         { 
           status: 500,
           headers: { "Content-Type": "application/json" }
@@ -70,8 +79,9 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       );
     }
 
-    // 6. Verification check
-    if (parsed.code !== code.toString()) {
+    // 6. If code does not match, return HTTP 401
+    // Using string comparison to handle numeric codes safely
+    if (parsed.code.toString() !== code.toString()) {
       return new Response(
         JSON.stringify({ error: "Invalid verification code" }), 
         { 
@@ -81,10 +91,10 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       );
     }
 
-    // 7. Security: Immediate deletion for single-use enforcement
+    // 7. If code matches: Delete KV entry immediately (single-use)
     await kv.delete(key);
 
-    // 8. Success response
+    // 8. Return HTTP 200 with { ok: true }
     return new Response(
       JSON.stringify({ ok: true }), 
       {
@@ -94,9 +104,9 @@ export async function onRequestPost(context: { request: Request; env: any }) {
     );
 
   } catch (err: any) {
-    // 9. Generic error handling to prevent sensitive data exposure
+    // 9. Security: Do not log or expose codes or detailed internal errors
     return new Response(
-      JSON.stringify({ error: "An unexpected server error occurred during handshake." }), 
+      JSON.stringify({ error: "Server error occurred during handshake." }), 
       { 
         status: 500,
         headers: { "Content-Type": "application/json" }

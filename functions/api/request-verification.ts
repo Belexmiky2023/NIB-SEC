@@ -1,11 +1,10 @@
 
 export async function onRequestPost(context: { request: Request; env: any }) {
   const { request, env } = context;
-  // Use VERIFY_KV as prioritized by the updated spec, falling back to existing bindings
-  const kv = env.VERIFY_KV || env.DB || env.KV;
+  const kv = env.KV || env.VERIFY_KV || env.DB;
 
   if (!kv) {
-    return new Response(JSON.stringify({ error: "KV binding 'VERIFY_KV' not found" }), { 
+    return new Response(JSON.stringify({ error: "KV binding not found" }), { 
       status: 500,
       headers: { "Content-Type": "application/json" }
     });
@@ -13,7 +12,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
 
   try {
     const { phone } = await request.json();
-    const digitsOnly = phone?.replace(/\D/g, '');
+    const digitsOnly = phone?.toString().replace(/\D/g, '');
 
     if (!digitsOnly || digitsOnly.length < 9) {
       return new Response(JSON.stringify({ error: "Invalid phone number length" }), { 
@@ -25,7 +24,6 @@ export async function onRequestPost(context: { request: Request; env: any }) {
     // Generate random 7-digit numeric code
     const code = Math.floor(1000000 + Math.random() * 9000000).toString();
 
-    // Store in KV with 5 minute expiration (300 seconds)
     // Key format: verify:<phone>
     // Value format: { "code": "..." }
     const key = `verify:${digitsOnly}`;
@@ -36,7 +34,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: "Verification request failure", details: err.message }), { 
+    return new Response(JSON.stringify({ error: "Verification request failure" }), { 
       status: 500,
       headers: { "Content-Type": "application/json" }
     });
