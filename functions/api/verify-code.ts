@@ -1,26 +1,17 @@
+
 /**
- * NIB SEC - Verification Signal Endpoint
+ * NIB SEC - SQL Verification Protocol
  * 
- * wrangler.jsonc / wrangler.toml binding example:
- * {
- *   "kv_namespaces": [
- *     {
- *       "binding": "VERIFY_KV",
- *       "id": "f39c6a86088a4f81ad60540ed3ce5602"
- *     }
- *   ]
- * }
+ * Requirement: This worker utilizes Cloudflare D1 SQL database instead of KV.
  */
 
 export async function onRequestPost(context: { request: Request; env: any }) {
   const { request, env } = context;
-  
-  // Requirement 1: Unified KV Resolution
-  const kv = env.VERIFY_KV || env.DB || env.KV;
+  const db = env.DB;
 
-  if (!kv) {
+  if (!db) {
     return new Response(
-      JSON.stringify({ error: "KV binding error. Please ensure a KV namespace is bound to 'VERIFY_KV', 'DB', or 'KV'." }), 
+      JSON.stringify({ error: "Signal Database (D1) not found. Check binding 'DB'." }), 
       { 
         status: 500,
         headers: { "Content-Type": "application/json" }
@@ -42,13 +33,22 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       );
     }
 
-    // Standardize phone key format
-    const digitsOnly = phone.toString().replace(/\D/g, '');
-    const key = `verify:${digitsOnly}`;
+    // Normalize phone node for lookup
+    let digitsOnly = phone.toString().replace(/\D/g, '');
+    if (digitsOnly.startsWith("0")) {
+      digitsOnly = "251" + digitsOnly.substring(1);
+    }
 
-    const storedValue = await kv.get(key);
+    // 1. Fetch code from SQL and check expiration
+    const now = new Date().toISOString();
+    const record: any = await db.prepare(
+      "SELECT code FROM verification WHERE phone = ? AND expires_at > ?"
+    )
+    .bind(digitsOnly, now)
+    .first();
 
-    if (!storedValue) {
+    // 2. If record missing or expired
+    if (!record) {
       return new Response(
         JSON.stringify({ error: "Code expired or not found" }), 
         { 
@@ -58,22 +58,8 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       );
     }
 
-    let parsed: { code: string };
-    try {
-      parsed = JSON.parse(storedValue);
-    } catch (e) {
-      await kv.delete(key);
-      return new Response(
-        JSON.stringify({ error: "Neural record corruption. Handshake failed." }), 
-        { 
-          status: 500,
-          headers: { "Content-Type": "application/json" }
-        }
-      );
-    }
-
-    // Verify code equality
-    if (parsed.code.toString() !== code.toString()) {
+    // 3. Verify code equality
+    if (record.code.toString() !== code.toString()) {
       return new Response(
         JSON.stringify({ error: "Invalid verification code" }), 
         { 
@@ -83,9 +69,12 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       );
     }
 
-    // Security: Single-use enforcement
-    await kv.delete(key);
+    // 4. Security: Single-use enforcement (SQL Delete)
+    await db.prepare("DELETE FROM verification WHERE phone = ?")
+      .bind(digitsOnly)
+      .run();
 
+    // 5. Success
     return new Response(
       JSON.stringify({ ok: true }), 
       {
@@ -96,7 +85,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
 
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: "Handshake aborted due to internal signal failure." }), 
+      JSON.stringify({ error: "Neural link handshake failure." }), 
       { 
         status: 500,
         headers: { "Content-Type": "application/json" }
