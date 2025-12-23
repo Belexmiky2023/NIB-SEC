@@ -1,10 +1,11 @@
 
 export async function onRequestPost(context: { request: Request; env: any }) {
   const { request, env } = context;
-  const kv = env.DB || env.KV;
+  // Use VERIFY_KV as prioritized by the updated spec, falling back to existing bindings
+  const kv = env.VERIFY_KV || env.DB || env.KV;
 
   if (!kv) {
-    return new Response(JSON.stringify({ error: "KV binding 'DB' or 'KV' not found" }), { 
+    return new Response(JSON.stringify({ error: "KV binding 'VERIFY_KV' not found" }), { 
       status: 500,
       headers: { "Content-Type": "application/json" }
     });
@@ -14,8 +15,8 @@ export async function onRequestPost(context: { request: Request; env: any }) {
     const { phone } = await request.json();
     const digitsOnly = phone?.replace(/\D/g, '');
 
-    if (!digitsOnly || digitsOnly.length < 8) {
-      return new Response(JSON.stringify({ error: "Invalid phone number" }), { 
+    if (!digitsOnly || digitsOnly.length < 9) {
+      return new Response(JSON.stringify({ error: "Invalid phone number length" }), { 
         status: 400,
         headers: { "Content-Type": "application/json" }
       });
@@ -24,11 +25,14 @@ export async function onRequestPost(context: { request: Request; env: any }) {
     // Generate random 7-digit numeric code
     const code = Math.floor(1000000 + Math.random() * 9000000).toString();
 
-    // Store in KV with 5 minute expiration (100 seconds)
-    const key = `verification:${digitsOnly}`;
-    await kv.put(key, code, { expirationTtl: 100 });
+    // Store in KV with 5 minute expiration (300 seconds)
+    // Key format: verify:<phone>
+    // Value format: { "code": "..." }
+    const key = `verify:${digitsOnly}`;
+    await kv.put(key, JSON.stringify({ code }), { expirationTtl: 300 });
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
       headers: { "Content-Type": "application/json" },
     });
   } catch (err: any) {

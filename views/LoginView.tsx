@@ -64,9 +64,10 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
       return;
     }
     
-    // 2. Validate Phone Node (Exactly 10 digits)
-    const digitsOnly = phoneNumber.replace(/\D/g, '');
-    if (digitsOnly.length === 10) {
+    // 2. Validate Phone Node (Allowing 9 to 15 digits)
+    const digitsOnly =
+  (selectedCountry.code + phoneNumber).replace(/\D/g, '');
+    if (digitsOnly.length >= 9 && digitsOnly.length <= 15) {
       setIsLoading(true);
       try {
         const response = await fetch('/api/request-verification', {
@@ -75,42 +76,48 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           body: JSON.stringify({ phone: digitsOnly }),
         });
         
+        // Ensure transition only if API responds with success
         if (response.ok) {
           setIsVerifying(true);
         } else {
-          alert("Signal request failed. Try again later.");
+          const errorData = await response.json().catch(() => ({ error: "Unknown protocol error" }));
+          alert(`Signal request failed: ${errorData.error || "Please ensure the server node is active."}`);
         }
       } catch (e) {
-        alert("Network error during handshake.");
+        alert("Network error during handshake. Check your signal.");
       } finally {
+        // Requirement: Always clear the loading state on success or failure
         setIsLoading(false);
       }
     } else {
-      alert("Please enter a valid 10-digit Phone Number");
+      alert("Please enter a valid Phone Number");
     }
   };
 
   const handleVerifyCode = async () => {
     if (verificationCode.length !== 7) {
-      alert("Enter the 7-digit code from the Telegram Bot");
+      alert("Enter the 7-digit code received from the Telegram Bot");
       return;
     }
 
     setIsLoading(true);
+    const digitsOnly = phoneNumber.replace(/\D/g, '');
     try {
       const response = await fetch('/api/verify-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phoneNumber.replace(/\D/g, ''), code: verificationCode }),
+        body: JSON.stringify({ phone: digitsOnly, code: verificationCode }),
       });
 
       if (response.ok) {
-        onLogin('phone', phoneNumber);
+        // Pass normalized digits to onLogin for consistent node identification
+        onLogin('phone', digitsOnly);
       } else {
-        alert("Invalid or expired code. Request a new signal.");
+        const data = await response.json().catch(() => ({ error: "Handshake rejected" }));
+        alert(data.error || "Invalid or expired code. Request a new signal.");
       }
     } catch (e) {
-      alert("Verification signal failed.");
+      alert("Verification signal failed. Handshake aborted.");
     } finally {
       setIsLoading(false);
     }
@@ -139,7 +146,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           {!isVerifying ? (
             <div className="space-y-6">
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest px-2">Phone Node (10 Digits)</label>
+                <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest px-2">Phone Node</label>
                 <div className="relative flex items-center bg-[#111] border border-white/5 rounded-3xl p-2 focus-within:border-yellow-400/50 transition-all">
                   <button 
                     onClick={() => setShowCountryDropdown(!showCountryDropdown)}
@@ -168,6 +175,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                     onChange={(e) => setPhoneNumber(e.target.value)} 
                     placeholder="912345678" 
                     className="flex-1 bg-transparent border-none outline-none py-4 px-4 text-white font-black text-lg tracking-widest" 
+                    onKeyDown={(e) => e.key === 'Enter' && handleContinue()}
                   />
                 </div>
               </div>
@@ -177,7 +185,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 disabled={isLoading}
                 className="w-full py-6 bg-yellow-400 text-black rounded-3xl font-black uppercase tracking-widest text-xs hover:scale-105 active:scale-95 transition-all shadow-xl disabled:opacity-50"
               >
-                {isLoading ? "REQUESTING..." : "Continue"}
+                {isLoading ? "REQUESTING..." : "Request Signal"}
               </button>
 
               <div className="relative flex items-center justify-center py-2">
@@ -198,13 +206,13 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
             <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
               <div className="bg-yellow-400/5 border border-yellow-400/20 p-6 rounded-3xl text-center space-y-4">
                 <p className="text-[11px] font-black text-yellow-400 uppercase tracking-widest leading-relaxed">
-                  Go to our Telegram Bot to receive your code:
+                  Open the Telegram Bot to receive your secure code:
                 </p>
                 <a 
                   href="https://t.me/NibSecBot" 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="inline-block px-6 py-2 bg-yellow-400 text-black rounded-xl text-[10px] font-black uppercase"
+                  className="inline-block px-8 py-3 bg-yellow-400 text-black rounded-xl text-[10px] font-black uppercase shadow-glow"
                 >
                   <i className="fa-brands fa-telegram mr-2"></i>Open @NibSecBot
                 </a>
@@ -219,6 +227,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))} 
                   placeholder="0000000" 
                   className="w-full bg-black border border-white/5 rounded-3xl py-6 px-10 text-center text-white font-black text-4xl tracking-[0.2em] outline-none focus:border-yellow-400 transition-all" 
+                  onKeyDown={(e) => e.key === 'Enter' && handleVerifyCode()}
                 />
               </div>
 
@@ -234,7 +243,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   onClick={() => setIsVerifying(false)}
                   className="w-full py-4 text-gray-600 hover:text-white transition-colors text-[9px] font-black uppercase tracking-[0.4em]"
                 >
-                  Edit Phone Node
+                  Modify Phone Node
                 </button>
               </div>
             </div>
