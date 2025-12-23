@@ -1,7 +1,6 @@
-
 export async function onRequestPost(context: { request: Request; env: any }) {
   const { request, env } = context;
-  const kv = env.VERIFY_KV || env.DB || env.KV;
+  const kv = env.VERIFY_KV;
 
   if (!kv) {
     return new Response(JSON.stringify({ error: "KV binding 'VERIFY_KV' not found" }), { 
@@ -36,7 +35,8 @@ export async function onRequestPost(context: { request: Request; env: any }) {
     try {
       parsed = JSON.parse(storedValue);
     } catch (e) {
-      return new Response(JSON.stringify({ error: "Registry corruption detected" }), { 
+      // Gracefully handle malformed or non-JSON data
+      return new Response(JSON.stringify({ error: "Internal registry error" }), { 
         status: 500,
         headers: { "Content-Type": "application/json" }
       });
@@ -49,7 +49,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       });
     }
 
-    // Success path: Single-use code deletion
+    // Single-use security: Delete entry immediately after successful verification
     await kv.delete(key);
 
     return new Response(JSON.stringify({ ok: true }), {
@@ -57,7 +57,8 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: "Server error", details: err.message }), { 
+    // Prevent sensitive information leakage in logs/responses
+    return new Response(JSON.stringify({ error: "Server error" }), { 
       status: 500,
       headers: { "Content-Type": "application/json" }
     });

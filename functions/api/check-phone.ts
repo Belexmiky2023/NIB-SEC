@@ -1,10 +1,9 @@
-
 export async function onRequestPost(context: { request: Request; env: any }) {
   const { request, env } = context;
-  const kv = env.DB || env.KV;
+  const kv = env.VERIFY_KV || env.DB || env.KV;
 
   if (!kv) {
-    return new Response(JSON.stringify({ error: "KV not found" }), { status: 500 });
+    return new Response(JSON.stringify({ error: "KV binding not found" }), { status: 500 });
   }
 
   try {
@@ -18,12 +17,18 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       });
     }
 
-    const code = await kv.get(`verification:${digitsOnly}`);
+    // Match the new 'verify:' prefix and JSON structure
+    const storedValue = await kv.get(`verify:${digitsOnly}`);
 
-    if (code) {
-      return new Response(JSON.stringify({ valid: true, code: code }), {
-        headers: { "Content-Type": "application/json" },
-      });
+    if (storedValue) {
+      try {
+        const parsed = JSON.parse(storedValue);
+        return new Response(JSON.stringify({ valid: true, code: parsed.code }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ valid: false, error: "Malformed record" }), { status: 500 });
+      }
     } else {
       return new Response(JSON.stringify({ valid: false }), {
         headers: { "Content-Type": "application/json" },

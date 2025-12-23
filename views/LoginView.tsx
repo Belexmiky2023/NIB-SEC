@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 
 interface Country {
@@ -57,6 +56,10 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     );
   }, [searchQuery]);
 
+  const getFullNormalizedPhone = () => {
+    return (selectedCountry.code + phoneNumber).replace(/\D/g, '');
+  };
+
   const handleContinue = async () => {
     // 1. Check for Admin Secret
     if (phoneNumber === ADMIN_SECRET) {
@@ -65,8 +68,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     }
     
     // 2. Validate Phone Node (Allowing 9 to 15 digits)
-    const digitsOnly =
-  (selectedCountry.code + phoneNumber).replace(/\D/g, '');
+    const digitsOnly = getFullNormalizedPhone();
     if (digitsOnly.length >= 9 && digitsOnly.length <= 15) {
       setIsLoading(true);
       try {
@@ -86,7 +88,6 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
       } catch (e) {
         alert("Network error during handshake. Check your signal.");
       } finally {
-        // Requirement: Always clear the loading state on success or failure
         setIsLoading(false);
       }
     } else {
@@ -101,7 +102,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     }
 
     setIsLoading(true);
-    const digitsOnly = phoneNumber.replace(/\D/g, '');
+    const digitsOnly = getFullNormalizedPhone();
     try {
       const response = await fetch('/api/verify-code', {
         method: 'POST',
@@ -110,7 +111,6 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
       });
 
       if (response.ok) {
-        // Pass normalized digits to onLogin for consistent node identification
         onLogin('phone', digitsOnly);
       } else {
         const data = await response.json().catch(() => ({ error: "Handshake rejected" }));
