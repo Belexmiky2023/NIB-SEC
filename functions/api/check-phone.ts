@@ -4,7 +4,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
   const db = env.DB;
 
   if (!db) {
-    return new Response(JSON.stringify({ error: "Database connection failed" }), { status: 500 });
+    return new Response(JSON.stringify({ error: "D1 Database connection failed" }), { status: 500 });
   }
 
   try {
@@ -16,7 +16,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       });
     }
 
-    // Normalization: Prepend +251 if starts with 0
+    // Normalization: Parity with verify-code endpoint
     let normalizedPhone = phone.toString().trim();
     if (normalizedPhone.startsWith("0")) {
       normalizedPhone = "+251" + normalizedPhone.substring(1);
@@ -41,7 +41,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       });
     }
   } catch (err: any) {
-    return new Response(JSON.stringify({ valid: false, error: "Registry query error" }), { 
+    return new Response(JSON.stringify({ valid: false, error: "D1 Registry query failure" }), { 
       status: 500,
       headers: { "Content-Type": "application/json" }
     });

@@ -4,13 +4,10 @@ export async function onRequestPost(context: { request: Request; env: any }) {
   const db = env.DB;
 
   if (!db) {
-    return new Response(
-      JSON.stringify({ error: "Signal Database (D1) not found. Check binding 'DB'." }), 
-      { 
-        status: 500,
-        headers: { "Content-Type": "application/json" }
-      }
-    );
+    return new Response(JSON.stringify({ error: "D1 Database binding 'DB' missing" }), { 
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 
   try {
@@ -19,7 +16,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
 
     if (!phone || !code) {
       return new Response(
-        JSON.stringify({ error: "Protocol Error: Missing phone node or verification code." }), 
+        JSON.stringify({ error: "Protocol Error: Missing phone or verification code" }), 
         { 
           status: 400,
           headers: { "Content-Type": "application/json" }
@@ -27,7 +24,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       );
     }
 
-    // Normalize phone node for lookup
+    // Normalization node
     let normalizedPhone = phone.toString().trim();
     if (normalizedPhone.startsWith("0")) {
       normalizedPhone = "+251" + normalizedPhone.substring(1);
@@ -35,7 +32,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       normalizedPhone = "+" + normalizedPhone;
     }
 
-    // 1. Fetch code from SQL and check expiration
+    // SQL Query: Check code and current timestamp
     const now = new Date().toISOString();
     const record: any = await db.prepare(
       "SELECT code FROM verification WHERE phone = ? AND expires_at > ?"
@@ -43,7 +40,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
     .bind(normalizedPhone, now)
     .first();
 
-    // 2. If record missing or expired
+    // 1. If record missing or expired
     if (!record) {
       return new Response(
         JSON.stringify({ error: "Code expired or not found" }), 
@@ -54,7 +51,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       );
     }
 
-    // 3. Verify code equality
+    // 2. If code mismatch
     if (record.code.toString() !== code.toString()) {
       return new Response(
         JSON.stringify({ error: "Invalid verification code" }), 
@@ -65,12 +62,11 @@ export async function onRequestPost(context: { request: Request; env: any }) {
       );
     }
 
-    // 4. Security: Single-use enforcement (SQL Delete)
+    // 3. Security: Single-use enforcement (Atomic Delete)
     await db.prepare("DELETE FROM verification WHERE phone = ?")
       .bind(normalizedPhone)
       .run();
 
-    // 5. Success
     return new Response(
       JSON.stringify({ ok: true }), 
       {
@@ -81,7 +77,7 @@ export async function onRequestPost(context: { request: Request; env: any }) {
 
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: "Neural link handshake failure." }), 
+      JSON.stringify({ error: "Handshake failure", details: err.message }), 
       { 
         status: 500,
         headers: { "Content-Type": "application/json" }
