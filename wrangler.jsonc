@@ -1,0 +1,14 @@
+{
+  "$schema": "https://developers.cloudflare.com/pages/sites/reference/configuration",
+  "name": "nib-sec",
+  "main": "functions",
+  "compatibility_date": "2025-12-24",
+  "functions": {
+    "directory": "functions"
+  },
+  "build": {
+    "command": "npm run build",
+    "directory": ".",
+    "output": "dist"
+  }
+}
