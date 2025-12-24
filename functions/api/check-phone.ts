@@ -1,47 +1,40 @@
-export async function onRequestPost({ request, env }: { request: Request; env: any }) {
+export async function onRequestPost(context: { request: Request; env: any }) {
+  const { request, env } = context;
   const db = env.DB;
 
   if (!db) {
-    return new Response(
-      JSON.stringify({ valid: false, error: "D1 database unavailable" }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: "D1 Database connection failed" }), { status: 500 });
   }
 
-  let body: any;
   try {
-    body = await request.json();
-  } catch {
-    return new Response(
-      JSON.stringify({ valid: false }),
-      { status: 400, headers: { "Content-Type": "application/json" } }
-    );
-  }
+    const { phone } = await request.json();
+    if (!phone) {
+      return new Response(JSON.stringify({ valid: false, error: "Missing node ID" }), { status: 400 });
+    }
 
-  const { phone } = body;
-  if (!phone) {
-    return new Response(
-      JSON.stringify({ valid: false }),
-      { status: 400, headers: { "Content-Type": "application/json" } }
-    );
-  }
+    let normalizedPhone = phone.toString().trim();
+    if (normalizedPhone.startsWith("0")) {
+      normalizedPhone = "+251" + normalizedPhone.substring(1);
+    } else if (!normalizedPhone.startsWith("+")) {
+      normalizedPhone = "+" + normalizedPhone;
+    }
 
-  let normalizedPhone = String(phone).trim();
-  if (normalizedPhone.startsWith("0")) {
-    normalizedPhone = "+251" + normalizedPhone.slice(1);
-  } else if (!normalizedPhone.startsWith("+")) {
-    normalizedPhone = "+" + normalizedPhone;
-  }
-
-  const record = await db
-    .prepare(
-      "SELECT 1 FROM verification WHERE phone = ? AND expires_at > ?"
+    const record: any = await db.prepare(
+      "SELECT code FROM verification WHERE phone = ? AND expires_at > CURRENT_TIMESTAMP"
     )
-    .bind(normalizedPhone, new Date().toISOString())
+    .bind(normalizedPhone)
     .first();
 
-  return new Response(
-    JSON.stringify({ valid: Boolean(record) }),
-    { headers: { "Content-Type": "application/json" } }
-  );
+    if (record) {
+      return new Response(JSON.stringify({ valid: true, code: record.code }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    } else {
+      return new Response(JSON.stringify({ valid: false }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  } catch (err: any) {
+    return new Response(JSON.stringify({ valid: false, error: "D1 Query failure" }), { status: 500 });
+  }
 }

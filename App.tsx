@@ -5,7 +5,6 @@ import LoginView from './views/LoginView';
 import LoadingView from './views/LoadingView';
 import SetupView from './views/SetupView';
 import MainView from './views/MainView';
-// Fix: Explicitly import from the .tsx file to avoid conflict with the deprecated .ts module
 import CallingView from './views/CallingView.tsx';
 import AdminView from './views/AdminView';
 
@@ -21,7 +20,7 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<Theme>('night');
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // CRITICAL: Push User Data to Backend KV Store for Admin Visibility
+  // Sync user data to D1 SQL database
   const syncUserToGlobalRegistry = async (userData: User) => {
     try {
       localStorage.setItem('nib_sec_user_data', JSON.stringify(userData));
@@ -31,10 +30,10 @@ const App: React.FC = () => {
         body: JSON.stringify(userData),
       });
       if (response.ok) {
-        console.log(`[AUTH_SYNC] Node connection established. Identity persisted in KV.`);
+        console.log(`[AUTH_SYNC] Identity persisted in SQL registry.`);
       }
     } catch (e) {
-      console.error('[AUTH_SYNC_ERROR] Neural link failure during persistence:', e);
+      console.error('[AUTH_SYNC_ERROR] Database connection failure:', e);
     }
   };
 
@@ -132,27 +131,25 @@ const App: React.FC = () => {
       window.location.href = googleAuthUrl;
     } else {
       setAppState('LOADING');
-      setTimeout(async () => {
-        if (val === ADMIN_SECRET) {
-          setAppState('ADMIN');
-          return;
-        }
-        const mockUser: User = {
-          id: 'phone:' + val,
-          username: '',
-          displayName: '',
-          phone: val,
-          avatarUrl: 'https://picsum.photos/200',
-          isProfileComplete: false,
-          walletBalance: '0',
-          isBanned: false,
-          loginMethod: 'phone',
-          registrationDate: Date.now()
-        };
-        setUser(mockUser);
-        await syncUserToGlobalRegistry(mockUser);
-        setAppState('SETUP');
-      }, 1500);
+      if (val === ADMIN_SECRET) {
+        setAppState('ADMIN');
+        return;
+      }
+      const mockUser: User = {
+        id: 'phone:' + val,
+        username: '',
+        displayName: '',
+        phone: val,
+        avatarUrl: 'https://picsum.photos/200',
+        isProfileComplete: false,
+        walletBalance: '0',
+        isBanned: false,
+        loginMethod: 'phone',
+        registrationDate: Date.now()
+      };
+      setUser(mockUser);
+      await syncUserToGlobalRegistry(mockUser);
+      setAppState('SETUP');
     }
   };
 
@@ -162,7 +159,7 @@ const App: React.FC = () => {
       setUser(updatedUser);
       await syncUserToGlobalRegistry(updatedUser);
       setAppState('LOADING');
-      setTimeout(() => setAppState('MAIN'), 1500);
+      setTimeout(() => setAppState('MAIN'), 1000);
     }
   };
 
@@ -180,18 +177,12 @@ const App: React.FC = () => {
 
   if (user?.isBanned && appState !== 'LOGIN' && appState !== 'ADMIN') {
     return (
-      <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-8 text-center space-y-12 relative overflow-hidden">
-        <div className="absolute inset-0 bg-red-900/10 blur-3xl rounded-full scale-150 animate-pulse"></div>
-        <div className="relative z-10 space-y-8">
-           <div className="w-32 h-32 hexagon bg-red-600 flex items-center justify-center text-white mx-auto shadow-[0_0_50px_rgba(220,38,38,0.5)]">
-              <i className="fa-solid fa-hand text-6xl"></i>
-           </div>
-           <div className="space-y-4">
-              <h1 className="text-6xl font-black italic uppercase text-white tracking-tighter">Access <span className="text-red-500">Denied</span></h1>
-              <p className="text-gray-500 font-mono text-sm uppercase tracking-[0.4em]">Node Termination Protocol Active</p>
-           </div>
-           <button onClick={handleSignOut} className="px-12 py-5 bg-white/5 border border-white/10 rounded-full text-xs font-black uppercase tracking-widest hover:bg-white hover:text-black transition-all">Exit Hive</button>
+      <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-8 text-center space-y-12">
+        <div className="w-32 h-32 hexagon bg-red-600 flex items-center justify-center text-white mx-auto shadow-glow">
+          <i className="fa-solid fa-hand text-6xl"></i>
         </div>
+        <h1 className="text-4xl font-black italic text-white uppercase">Access Terminated</h1>
+        <button onClick={handleSignOut} className="px-12 py-5 bg-white/5 border border-white/10 rounded-full text-xs font-black uppercase tracking-widest hover:bg-white hover:text-black transition-all">Return to Hive</button>
       </div>
     );
   }
@@ -224,9 +215,6 @@ const App: React.FC = () => {
           }} 
         />
       )}
-      <footer className="fixed bottom-4 w-full text-center text-[10px] text-gray-600 font-mono uppercase tracking-[0.3em] pointer-events-none z-0">
-        © 2025 NIB SEC • SECURED COMMUNICATION • T.ME/NIBSEC
-      </footer>
     </div>
   );
 };
