@@ -7,6 +7,8 @@ interface CallingViewProps {
   onEndCall: () => void;
 }
 
+type Resolution = '480p' | '720p' | '1080p';
+
 const CallingView: React.FC<CallingViewProps> = ({ contact, onEndCall }) => {
   const [callDuration, setCallDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
@@ -14,6 +16,15 @@ const CallingView: React.FC<CallingViewProps> = ({ contact, onEndCall }) => {
   const [callStatus, setCallStatus] = useState<'establishing' | 'connected' | 'error'>('establishing');
   const [signalStrength, setSignalStrength] = useState(98);
   const [showArchives, setShowArchives] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  
+  // Settings State
+  const [resolution, setResolution] = useState<Resolution>('720p');
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedVideoId, setSelectedVideoId] = useState<string>('');
+  const [selectedAudioId, setSelectedAudioId] = useState<string>('');
+  const [selectedOutputId, setSelectedOutputId] = useState<string>('');
+
   const [history, setHistory] = useState<CallRecord[]>(() => {
     const saved = localStorage.getItem('nib_sec_call_history');
     return saved ? JSON.parse(saved) : [];
@@ -27,47 +38,78 @@ const CallingView: React.FC<CallingViewProps> = ({ contact, onEndCall }) => {
     durationRef.current = callDuration;
   }, [callDuration]);
 
+  // Initial device discovery
   useEffect(() => {
-    let timer: any;
-    const startMedia = async () => {
+    const initDevices = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 1280, height: 720 },
-          audio: true
-        });
-        streamRef.current = stream;
-        
-        setTimeout(() => {
-          setCallStatus('connected');
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-          }
-          timer = window.setInterval(() => setCallDuration(d => d + 1), 1000);
-        }, 2500);
-
-        const sigInv = setInterval(() => {
-          setSignalStrength(85 + Math.floor(Math.random() * 15));
-        }, 3000);
-
-        return () => {
-           clearInterval(sigInv);
-           if (timer) clearInterval(timer);
-        };
-      } catch (err) {
-        console.error("Neural link handshake failed:", err);
-        setCallStatus('error');
+        await navigator.mediaDevices.getUserMedia({ audio: true, video: true }); // Prompt permission
+        const list = await navigator.mediaDevices.enumerateDevices();
+        setDevices(list);
+      } catch (e) {
+        console.warn("Device enumeration failed");
       }
     };
+    initDevices();
+  }, []);
 
-    startMedia();
+  const startMedia = async () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+    }
+
+    const resMap = {
+      '480p': { width: 640, height: 480 },
+      '720p': { width: 1280, height: 720 },
+      '1080p': { width: 1920, height: 1080 }
+    };
+
+    try {
+      const constraints = {
+        video: { 
+          ...resMap[resolution],
+          deviceId: selectedVideoId ? { exact: selectedVideoId } : undefined 
+        },
+        audio: { 
+          deviceId: selectedAudioId ? { exact: selectedAudioId } : undefined 
+        }
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      
+      setCallStatus('connected');
+    } catch (err) {
+      console.error("Neural link handshake failed:", err);
+      setCallStatus('error');
+    }
+  };
+
+  useEffect(() => {
+    let timer: any;
+    
+    const init = async () => {
+      await startMedia();
+      timer = window.setInterval(() => setCallDuration(d => d + 1), 1000);
+    };
+
+    init();
+
+    const sigInv = setInterval(() => {
+      setSignalStrength(85 + Math.floor(Math.random() * 15));
+    }, 3000);
 
     return () => {
+      clearInterval(sigInv);
       if (timer) clearInterval(timer);
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
     };
-  }, []);
+  }, [resolution, selectedVideoId, selectedAudioId]);
 
   useEffect(() => {
     if (streamRef.current) {
@@ -145,6 +187,90 @@ const CallingView: React.FC<CallingViewProps> = ({ contact, onEndCall }) => {
         </div>
       </div>
 
+      {/* SETTINGS MODAL */}
+      {showSettings && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-black/80 backdrop-blur-3xl animate-in fade-in zoom-in-95 duration-300">
+           <div className="w-full max-w-xl bg-[#080808] border border-yellow-400/20 rounded-[3rem] p-10 space-y-8 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/5 blur-3xl"></div>
+              
+              <div className="flex justify-between items-center">
+                 <h2 className="text-2xl font-black italic uppercase text-white tracking-tighter">Neural Configuration</h2>
+                 <button onClick={() => setShowSettings(false)} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-500 hover:text-white transition-all"><i className="fa-solid fa-xmark"></i></button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Resolution Section */}
+                <div className="space-y-3">
+                  <label className="text-[9px] font-black uppercase text-gray-600 tracking-widest px-2">Visual Scaling</label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {(['480p', '720p', '1080p'] as Resolution[]).map(r => (
+                      <button 
+                        key={r}
+                        onClick={() => setResolution(r)}
+                        className={`py-3 rounded-xl text-[10px] font-black uppercase transition-all border ${resolution === r ? 'bg-yellow-400 text-black border-yellow-400 shadow-glow' : 'bg-black text-gray-500 border-white/5 hover:border-white/20'}`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Video Device */}
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black uppercase text-gray-600 tracking-widest px-2">Optics Sensor</label>
+                  <select 
+                    value={selectedVideoId} 
+                    onChange={e => setSelectedVideoId(e.target.value)}
+                    className="w-full bg-black border border-white/10 rounded-xl p-4 text-[11px] font-bold text-gray-400 outline-none focus:border-yellow-400/50"
+                  >
+                    <option value="">Default System Sensor</option>
+                    {devices.filter(d => d.kind === 'videoinput').map(d => (
+                      <option key={d.deviceId} value={d.deviceId}>{d.label || `Camera ${d.deviceId.slice(0,4)}`}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Audio Input */}
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black uppercase text-gray-600 tracking-widest px-2">Signal Pickup (Mic)</label>
+                  <select 
+                    value={selectedAudioId} 
+                    onChange={e => setSelectedAudioId(e.target.value)}
+                    className="w-full bg-black border border-white/10 rounded-xl p-4 text-[11px] font-bold text-gray-400 outline-none focus:border-yellow-400/50"
+                  >
+                    <option value="">Default Neural Pickup</option>
+                    {devices.filter(d => d.kind === 'audioinput').map(d => (
+                      <option key={d.deviceId} value={d.deviceId}>{d.label || `Mic ${d.deviceId.slice(0,4)}`}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Audio Output */}
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black uppercase text-gray-600 tracking-widest px-2">Audio Node (Speakers)</label>
+                  <select 
+                    value={selectedOutputId} 
+                    onChange={e => setSelectedOutputId(e.target.value)}
+                    className="w-full bg-black border border-white/10 rounded-xl p-4 text-[11px] font-bold text-gray-400 outline-none focus:border-yellow-400/50"
+                  >
+                    <option value="">Default Output Node</option>
+                    {devices.filter(d => d.kind === 'audiooutput').map(d => (
+                      <option key={d.deviceId} value={d.deviceId}>{d.label || `Speaker ${d.deviceId.slice(0,4)}`}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setShowSettings(false)}
+                className="w-full py-4 bg-yellow-400 text-black rounded-2xl font-black uppercase text-[10px] shadow-glow"
+              >
+                Apply Manifest
+              </button>
+           </div>
+        </div>
+      )}
+
       {/* HUD OVERLAYS */}
       <div className="absolute top-8 left-10 z-50 pointer-events-none">
         <div className="flex items-center space-x-4">
@@ -153,14 +279,15 @@ const CallingView: React.FC<CallingViewProps> = ({ contact, onEndCall }) => {
           </div>
           <div>
             <h2 className="text-[10px] font-black uppercase tracking-widest text-white">Target Node: {contact?.name || 'Cipher'}</h2>
-            <p className="text-[9px] text-yellow-400 font-mono">ENCRYPTION: AES-4096-BEE</p>
+            <p className="text-[9px] text-yellow-400 font-mono">ENCRYPTION: AES-4096-BEE | {resolution}</p>
           </div>
         </div>
       </div>
 
-      <div className="absolute top-8 right-10 z-50 pointer-events-none text-right flex items-center space-x-6">
+      <div className="absolute top-8 right-10 z-50 pointer-events-none text-right flex items-center space-x-4">
+        <button onClick={() => setShowSettings(true)} className="pointer-events-auto w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-gray-400 hover:text-yellow-400 transition-all shadow-md"><i className="fa-solid fa-gear"></i></button>
         <button onClick={() => setShowArchives(true)} className="pointer-events-auto w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-yellow-400 hover:bg-yellow-400 hover:text-black transition-all shadow-md"><i className="fa-solid fa-clock-rotate-left"></i></button>
-        <div className="space-y-1">
+        <div className="space-y-1 pl-2">
           <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Signal Strength</p>
           <div className="flex items-center justify-end space-x-2">
             <span className="text-lg font-black font-mono text-yellow-400">{signalStrength}%</span>
