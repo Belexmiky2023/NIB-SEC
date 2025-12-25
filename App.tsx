@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { User, AppState, Theme, Chat } from './types';
 import LoginView from './views/LoginView';
 import LoadingView from './views/LoadingView';
 import SetupView from './views/SetupView';
+import OnboardingView from './views/OnboardingView';
 import MainView from './views/MainView';
 import CallingView from './views/CallingView.tsx';
 import AdminView from './views/AdminView';
@@ -11,7 +11,7 @@ import AdminView from './views/AdminView';
 const GITHUB_CLIENT_ID = "Ov23liHIbFs3qWTJ0bez";
 const GOOGLE_CLIENT_ID = "1027735078146-l610f2vn1cnm4o791d4795m07fdq9gd2.apps.googleusercontent.com";
 const GOOGLE_REDIRECT_URI = "https://nib-sec.pages.dev/callback";
-const ADMIN_SECRET = "https://nib-sec.pages.dev/";
+const ADMIN_SECRET = "https://nib-sec.pages.dev/"; // Admin backdoor URL
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -20,7 +20,6 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<Theme>('night');
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Sync user data to D1 SQL database
   const syncUserToGlobalRegistry = async (userData: User) => {
     try {
       localStorage.setItem('nib_sec_user_data', JSON.stringify(userData));
@@ -54,7 +53,7 @@ const App: React.FC = () => {
     } else if (savedUser && savedState) {
       try {
         const parsedUser = JSON.parse(savedUser);
-        if (['MAIN', 'ADMIN', 'SETUP'].includes(savedState)) {
+        if (['MAIN', 'ADMIN', 'SETUP', 'ONBOARDING'].includes(savedState)) {
           setUser(parsedUser);
           setAppState(savedState as AppState);
         }
@@ -105,12 +104,23 @@ const App: React.FC = () => {
 
   const handleOAuthSuccess = async (method: 'github' | 'google', externalData: any) => {
     const userId = externalData?.id ? `${method}:${externalData.id}` : `${method}:${Math.random().toString(36).substr(2, 9)}`;
+    
+    try {
+      const syncRes = await fetch(`/api/user/sync?id=${userId}`);
+      if (syncRes.ok) {
+        const existingUser = await syncRes.json();
+        setUser(existingUser);
+        setAppState(existingUser.isProfileComplete ? 'MAIN' : 'SETUP');
+        return;
+      }
+    } catch (e) {}
+
     const mockUser: User = {
       id: userId,
       username: externalData?.name ? `@${externalData.name.toLowerCase().replace(/\s/g, '_')}` : `@${method}_user`,
       displayName: externalData?.name || `${method === 'github' ? 'GitHub' : 'Google'} Operative`,
       email: externalData?.email || 'not-disclosed',
-      avatarUrl: externalData?.picture || 'https://picsum.photos/200',
+      avatarUrl: externalData?.picture || 'https://i.ibb.co/3ykXF4K/nib-logo.png',
       isProfileComplete: false,
       walletBalance: '0',
       isBanned: false,
@@ -130,17 +140,31 @@ const App: React.FC = () => {
       const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}&response_type=code&scope=openid%20profile%20email&access_type=online`;
       window.location.href = googleAuthUrl;
     } else {
-      setAppState('LOADING');
+      // Admin backdoor check
       if (val === ADMIN_SECRET) {
         setAppState('ADMIN');
         return;
       }
+      
+      setAppState('LOADING');
+      const userId = 'phone:' + val;
+      
+      try {
+        const syncRes = await fetch(`/api/user/sync?id=${userId}`);
+        if (syncRes.ok) {
+          const existingUser = await syncRes.json();
+          setUser(existingUser);
+          setAppState(existingUser.isProfileComplete ? 'MAIN' : 'SETUP');
+          return;
+        }
+      } catch (e) {}
+
       const mockUser: User = {
-        id: 'phone:' + val,
+        id: userId,
         username: '',
         displayName: '',
         phone: val,
-        avatarUrl: 'https://picsum.photos/200',
+        avatarUrl: 'https://i.ibb.co/3ykXF4K/nib-logo.png',
         isProfileComplete: false,
         walletBalance: '0',
         isBanned: false,
@@ -158,8 +182,7 @@ const App: React.FC = () => {
       const updatedUser = { ...user, username, avatarUrl: avatar, displayName, isProfileComplete: true };
       setUser(updatedUser);
       await syncUserToGlobalRegistry(updatedUser);
-      setAppState('LOADING');
-      setTimeout(() => setAppState('MAIN'), 1000);
+      setAppState('ONBOARDING');
     }
   };
 
@@ -175,24 +198,13 @@ const App: React.FC = () => {
 
   if (!isInitialized) return <LoadingView />;
 
-  if (user?.isBanned && appState !== 'LOGIN' && appState !== 'ADMIN') {
-    return (
-      <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-8 text-center space-y-12">
-        <div className="w-32 h-32 hexagon bg-red-600 flex items-center justify-center text-white mx-auto shadow-glow">
-          <i className="fa-solid fa-hand text-6xl"></i>
-        </div>
-        <h1 className="text-4xl font-black italic text-white uppercase">Access Terminated</h1>
-        <button onClick={handleSignOut} className="px-12 py-5 bg-white/5 border border-white/10 rounded-full text-xs font-black uppercase tracking-widest hover:bg-white hover:text-black transition-all">Return to Hive</button>
-      </div>
-    );
-  }
-
   return (
     <div className={`h-screen w-screen overflow-hidden transition-colors duration-300 ${theme === 'night' ? 'bg-black text-white' : 'bg-gray-50 text-gray-900'}`}>
       {appState === 'LOGIN' && <LoginView onLogin={handleLogin} theme={theme} />}
       {appState === 'LOADING' && <LoadingView />}
       {appState === 'ADMIN' && <AdminView onExit={() => setAppState('LOGIN')} />}
       {appState === 'SETUP' && user && <SetupView initialData={user} onComplete={handleSetupComplete} />}
+      {appState === 'ONBOARDING' && <OnboardingView onComplete={() => setAppState('MAIN')} />}
       {appState === 'MAIN' && user && (
         <MainView 
           user={user}

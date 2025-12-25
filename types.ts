@@ -52,5 +52,5 @@ export interface CallRecord {
   duration: number;
 }
 
-export type AppState = 'LOGIN' | 'LOADING' | 'SETUP' | 'MAIN' | 'CALLING' | 'ADMIN';
+export type AppState = 'LOGIN' | 'LOADING' | 'SETUP' | 'ONBOARDING' | 'MAIN' | 'CALLING' | 'ADMIN';
 export type Theme = 'night' | 'light';

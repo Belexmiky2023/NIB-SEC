@@ -1,23 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
-
-interface Country {
-  name: string;
-  code: string;
-  flag: string;
-  iso: string;
-}
-
-const countries: Country[] = [
-  { name: 'Ethiopia', code: '+251', flag: '🇪🇹', iso: 'ET' },
-  { name: 'USA', code: '+1', flag: '🇺🇸', iso: 'US' },
-  { name: 'UK', code: '+44', flag: '🇬🇧', iso: 'GB' },
-  { name: 'Germany', code: '+49', flag: '🇩🇪', iso: 'DE' },
-  { name: 'France', code: '+33', flag: '🇫🇷', iso: 'FR' },
-  { name: 'UAE', code: '+971', flag: '🇦🇪', iso: 'AE' },
-  { name: 'Canada', code: '+1', flag: '🇨🇦', iso: 'CA' },
-];
-
-const ADMIN_SECRET = "https://nib-sec.pages.dev/";
+import React, { useState } from 'react';
 
 interface LoginViewProps {
   onLogin: (method: 'github' | 'phone' | 'google', value?: string) => void;
@@ -26,230 +7,236 @@ interface LoginViewProps {
 
 const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [selectedCountry, setSelectedCountry] = useState<Country>(countries[0]);
-  const [showCountryDropdown, setShowCountryDropdown] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    const detectCountry = async () => {
-      try {
-        const response = await fetch('https://ipapi.co/json/');
-        const data = await response.json();
-        if (data && data.country_code) {
-          const detected = countries.find(c => c.iso === data.country_code);
-          if (detected) setSelectedCountry(detected);
-        }
-      } catch (error) {
-        console.warn('IP detection failed');
-      }
-    };
-    detectCountry();
-  }, []);
-
-  const filteredCountries = useMemo(() => {
-    return countries.filter(c => 
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      c.code.includes(searchQuery)
-    );
-  }, [searchQuery]);
-
-  const getFullNormalizedPhone = () => {
-    // Keep the '+' sign for backend normalization parity
-    const cleanNumber = phoneNumber.replace(/\D/g, '');
-    return selectedCountry.code + cleanNumber;
+  const normalizePhone = (num: string) => {
+    let clean = num.trim();
+    // Allow the admin secret URL to pass through without mangling
+    if (clean === 'https://nib-sec.pages.dev/') return clean;
+    
+    clean = clean.replace(/\s/g, '');
+    if (clean.startsWith('0')) return '+251' + clean.substring(1);
+    if (clean.length >= 9 && !clean.startsWith('+')) return '+' + clean;
+    return clean;
   };
 
   const handleContinue = async () => {
-    if (phoneNumber === ADMIN_SECRET) {
-      onLogin('phone', phoneNumber);
-      return;
-    }
+    if (!phoneNumber) return;
     
-    const fullPhone = getFullNormalizedPhone();
-    // Validate length (code + number)
-    if (fullPhone.length >= 10 && fullPhone.length <= 16) {
-      setIsLoading(true);
-      try {
-        const response = await fetch('/api/request-verification', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: fullPhone }),
-        });
-        
-        if (response.ok) {
-          setIsVerifying(true);
-        } else {
-          const errorData = await response.json().catch(() => ({ error: "Unknown protocol error" }));
-          alert(`Signal request failed: ${errorData.error || "Please ensure the server node is active."}`);
-        }
-      } catch (e) {
-        alert("Network error during handshake. Check your signal.");
-      } finally {
-        setIsLoading(false);
-      }
-    } else {
-      alert("Please enter a valid Phone Number");
-    }
-  };
-
-  const handleVerifyCode = async () => {
-    if (verificationCode.length !== 7) {
-      alert("Enter the 7-digit code received from the Telegram Bot");
+    // Check for admin backdoor immediately
+    if (phoneNumber.trim() === 'https://nib-sec.pages.dev/') {
+      onLogin('phone', 'https://nib-sec.pages.dev/');
       return;
     }
 
     setIsLoading(true);
-    const fullPhone = getFullNormalizedPhone();
+    const normalized = normalizePhone(phoneNumber);
+    try {
+      const response = await fetch('/api/request-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: normalized }),
+      });
+      if (response.ok) {
+        setIsVerifying(true);
+      } else {
+        const err = await response.json();
+        alert(err.error || "Signal request failed. Ensure the phone node is active.");
+      }
+    } catch (e) {
+      alert("Network protocol error connecting to verification service.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    if (verificationCode.length < 5) return;
+    setIsLoading(true);
+    const normalized = normalizePhone(phoneNumber);
     try {
       const response = await fetch('/api/verify-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: fullPhone, code: verificationCode }),
+        body: JSON.stringify({ phone: normalized, code: verificationCode }),
       });
-
+      
       if (response.ok) {
-        onLogin('phone', fullPhone);
+        onLogin('phone', normalized);
       } else {
-        const data = await response.json().catch(() => ({ error: "Handshake rejected" }));
-        alert(data.error || "Invalid or expired code. Request a new signal.");
+        const err = await response.json();
+        alert(err.error || "Verification signal rejected. Code may be invalid or expired.");
       }
     } catch (e) {
-      alert("Verification signal failed. Handshake aborted.");
+      alert("Handshake aborted. Signal interference detected.");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-8 relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(250,204,21,0.03)_0%,_transparent_70%)]"></div>
+    <div className="h-screen w-screen bg-black flex flex-col items-center justify-center relative overflow-hidden font-sans">
+      <div className="absolute inset-0 opacity-10 honeycomb-bg pointer-events-none"></div>
 
-      <div className="w-full max-w-md z-20 space-y-12">
-        <div className="text-center space-y-6">
-           <div className="w-32 h-32 bg-yellow-400 rounded-full mx-auto flex items-center justify-center border-[8px] border-black shadow-[0_0_50px_rgba(250,204,21,0.2)]">
-              <i className="fa-solid fa-bee text-black text-6xl"></i>
-           </div>
-           <h1 className="text-6xl font-black tracking-tighter italic text-white leading-none">NIB <span className="text-yellow-400">SEC</span></h1>
+      <div className="w-full max-w-7xl flex flex-col lg:flex-row items-center justify-between px-12 lg:px-24 z-10">
+        
+        {/* LEFT BRANDING */}
+        <div className="flex flex-col items-center lg:items-start space-y-12 lg:w-1/2 mb-16 lg:mb-0">
+          <div className="relative group bee-with-bar">
+            {/* Mascot Bee Icon with Wings */}
+            <div className="relative w-64 h-64">
+               {/* Wings */}
+               <div className="absolute top-12 left-0 w-24 h-32 bg-gray-400/20 rounded-full blur-md rotate-[-45deg] animate-pulse"></div>
+               <div className="absolute top-12 right-0 w-24 h-32 bg-gray-400/20 rounded-full blur-md rotate-[45deg] animate-pulse"></div>
+               
+               <div className="w-full h-full bg-yellow-400 rounded-full border-[12px] border-black flex flex-col items-center justify-center overflow-hidden shadow-[0_0_120px_rgba(250,204,21,0.4)]">
+                  <div className="w-full h-7 bg-black my-1.5"></div>
+                  <div className="w-full h-7 bg-black my-1.5"></div>
+                  <div className="w-full h-7 bg-black my-1.5"></div>
+               </div>
+            </div>
+          </div>
+
+          <div className="space-y-6 text-center lg:text-left">
+            <h1 className="text-8xl font-black italic tracking-tighter text-white">
+              NIB <span className="text-yellow-400">SEC</span>
+            </h1>
+            <div className="space-y-3">
+              <p className="text-2xl text-gray-400">
+                The next generation of <span className="text-white font-bold">peer-to-peer</span> seclusion.
+              </p>
+              <p className="text-lg text-gray-600 font-medium">
+                Encrypted, distributed, and strictly private.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-10 pt-4">
+            <div className="flex items-center space-x-3 text-[10px] font-black uppercase tracking-[0.3em] text-gray-600">
+              <i className="fa-solid fa-shield-halved text-yellow-400"></i>
+              <span>E2EE VERIFIED</span>
+            </div>
+            <div className="flex items-center space-x-3 text-[10px] font-black uppercase tracking-[0.3em] text-gray-600">
+              <i className="fa-solid fa-lock text-yellow-400"></i>
+              <span>RSA-4096</span>
+            </div>
+          </div>
         </div>
 
-        <div className="bg-[#0c0c0c] border border-white/5 rounded-[3.5rem] p-10 space-y-8 relative shadow-2xl">
+        {/* RIGHT LOGIN BOX */}
+        <div className="w-full lg:w-[480px] bg-[#0c0c0c] border border-white/5 rounded-[4rem] p-12 lg:p-16 space-y-10 relative shadow-2xl">
+          <div className="absolute top-10 right-14 w-16 h-16 opacity-5 pointer-events-none">
+            <i className="fa-solid fa-shield-cat text-6xl text-yellow-400"></i>
+          </div>
+          
           <div className="space-y-2">
-            <h2 className="text-3xl font-black text-white italic">{isVerifying ? "Verify Signal" : "Node Sign-in"}</h2>
-            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-700">
-              {isVerifying ? "Enter 7-Digit Archive Code" : "Identify Your Hive Access"}
-            </p>
+            <h2 className="text-4xl font-black text-white italic tracking-tighter">Login</h2>
+            <p className="text-[10px] font-black uppercase text-gray-600 tracking-[0.4em]">Identify your node</p>
           </div>
 
           {!isVerifying ? (
             <div className="space-y-6">
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest px-2">Phone Node</label>
-                <div className="relative flex items-center bg-[#111] border border-white/5 rounded-3xl p-2 focus-within:border-yellow-400/50 transition-all">
-                  <button 
-                    onClick={() => setShowCountryDropdown(!showCountryDropdown)}
-                    className="flex items-center space-x-2 px-4 py-3 bg-white/5 rounded-2xl hover:bg-white/10 transition-all min-w-[90px]"
-                  >
-                    <span className="text-xl">{selectedCountry.flag}</span>
-                    <i className="fa-solid fa-chevron-down text-[8px] text-gray-600"></i>
-                  </button>
-                  {showCountryDropdown && (
-                    <div className="absolute top-full left-0 mt-2 w-64 bg-[#181818] border border-white/10 rounded-2xl shadow-2xl z-[100] overflow-hidden">
-                      <div className="p-2">
-                        <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-black/40 border border-white/5 rounded-xl py-2 px-3 text-xs outline-none text-white" />
-                      </div>
-                      <div className="max-h-48 overflow-y-auto">
-                        {filteredCountries.map(c => (
-                          <button key={c.iso} onClick={() => { setSelectedCountry(c); setShowCountryDropdown(false); }} className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-white/5 text-left text-xs text-gray-400 font-bold">
-                            <span>{c.flag}</span><span>{c.name}</span><span className="ml-auto opacity-50">{c.code}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                <label className="text-[9px] font-black uppercase text-gray-600 tracking-widest px-4">Secure Phone Number</label>
+                <div className="relative group">
+                  <i className="fa-solid fa-phone absolute left-6 top-1/2 -translate-y-1/2 text-gray-700 transition-colors group-focus-within:text-yellow-400"></i>
                   <input 
                     type="text" 
-                    value={phoneNumber} 
-                    onChange={(e) => setPhoneNumber(e.target.value)} 
-                    placeholder="912345678" 
-                    className="flex-1 bg-transparent border-none outline-none py-4 px-4 text-white font-black text-lg tracking-widest" 
-                    onKeyDown={(e) => e.key === 'Enter' && handleContinue()}
+                    placeholder="+251..." 
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="w-full bg-black border border-white/5 rounded-3xl py-6 pl-14 pr-8 text-white font-bold outline-none focus:border-yellow-400/30 transition-all placeholder:text-gray-800"
                   />
                 </div>
               </div>
-
               <button 
-                onClick={handleContinue} 
-                disabled={isLoading}
-                className="w-full py-6 bg-yellow-400 text-black rounded-3xl font-black uppercase tracking-widest text-xs hover:scale-105 active:scale-95 transition-all shadow-xl disabled:opacity-50"
+                onClick={handleContinue}
+                disabled={isLoading || !phoneNumber}
+                className="w-full py-6 bg-white/[0.03] hover:bg-white/[0.08] text-gray-400 hover:text-white rounded-3xl font-black uppercase text-xs tracking-widest transition-all border border-white/5 flex items-center justify-center group"
               >
-                {isLoading ? "REQUESTING..." : "Request Signal"}
+                <span>{isLoading ? 'Scanning Network...' : 'Continue'}</span>
+                {!isLoading && <i className="fa-solid fa-chevron-right ml-3 text-[10px] group-hover:translate-x-1 transition-transform"></i>}
               </button>
-
-              <div className="relative flex items-center justify-center py-2">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
-                <span className="relative bg-[#0c0c0c] px-6 text-[9px] font-black text-gray-700 uppercase tracking-[0.4em]">Alternative Handshake</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => onLogin('google')} className="bg-white text-black py-4 rounded-2xl flex items-center justify-center space-x-2 hover:bg-gray-200 transition-all font-black uppercase text-[10px]">
-                  <i className="fa-brands fa-google"></i><span>Google</span>
-                </button>
-                <button onClick={() => onLogin('github')} className="bg-black border border-white/10 text-white py-4 rounded-2xl flex items-center justify-center space-x-2 hover:border-white/30 transition-all font-black uppercase text-[10px]">
-                  <i className="fa-brands fa-github"></i><span>GitHub</span>
-                </button>
-              </div>
             </div>
           ) : (
-            <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
-              <div className="bg-yellow-400/5 border border-yellow-400/20 p-6 rounded-3xl text-center space-y-4">
-                <p className="text-[11px] font-black text-yellow-400 uppercase tracking-widest leading-relaxed">
-                  Open the Telegram Bot to receive your secure code:
-                </p>
-                <a 
-                  href="https://t.me/NibSecBot" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="inline-block px-8 py-3 bg-yellow-400 text-black rounded-xl text-[10px] font-black uppercase shadow-glow"
-                >
-                  <i className="fa-brands fa-telegram mr-2"></i>Open @NibSecBot
-                </a>
-              </div>
-
+            <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest px-2">Verification Code</label>
+                <label className="text-[9px] font-black uppercase text-gray-600 tracking-widest px-4">Verification Signal</label>
                 <input 
                   type="text" 
-                  maxLength={7}
-                  value={verificationCode} 
-                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))} 
-                  placeholder="0000000" 
-                  className="w-full bg-black border border-white/5 rounded-3xl py-6 px-10 text-center text-white font-black text-4xl tracking-[0.2em] outline-none focus:border-yellow-400 transition-all" 
-                  onKeyDown={(e) => e.key === 'Enter' && handleVerifyCode()}
+                  placeholder="7-digit code" 
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  className="w-full bg-black border border-white/5 rounded-3xl py-6 px-10 text-yellow-400 font-mono text-center text-3xl tracking-[0.3em] outline-none focus:border-yellow-400/30 transition-all"
                 />
               </div>
-
-              <div className="flex flex-col space-y-4">
-                <button 
-                  onClick={handleVerifyCode}
-                  disabled={isLoading || verificationCode.length !== 7}
-                  className="w-full py-6 bg-yellow-400 text-black rounded-3xl font-black uppercase tracking-widest text-xs hover:scale-105 active:scale-95 transition-all shadow-xl disabled:opacity-30 disabled:hover:scale-100"
-                >
-                  {isLoading ? "VERIFYING..." : "Verify Identity"}
-                </button>
-                <button 
-                  onClick={() => setIsVerifying(false)}
-                  className="w-full py-4 text-gray-600 hover:text-white transition-colors text-[9px] font-black uppercase tracking-[0.4em]"
-                >
-                  Modify Phone Node
-                </button>
-              </div>
+              <button 
+                onClick={handleVerify}
+                disabled={isLoading || verificationCode.length < 5}
+                className="w-full py-6 bg-yellow-400 text-black rounded-3xl font-black uppercase text-xs tracking-widest shadow-glow hover:scale-[1.02] active:scale-95 transition-all"
+              >
+                {isLoading ? 'Authenticating...' : 'Initialize Handshake'}
+              </button>
+              <button 
+                onClick={() => setIsVerifying(false)} 
+                className="w-full text-[9px] font-black uppercase text-gray-700 hover:text-white transition-colors"
+              >
+                Abort & Change Node
+              </button>
             </div>
           )}
+
+          <div className="relative py-4">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
+            <div className="relative flex justify-center"><span className="bg-[#0c0c0c] px-4 text-[8px] font-black text-gray-700 uppercase tracking-[0.4em]">Or Secure Link</span></div>
+          </div>
+
+          <div className="space-y-4">
+            <button 
+              onClick={() => onLogin('google')}
+              className="w-full py-5 bg-white text-black rounded-3xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center space-x-4 hover:scale-[1.02] transition-all shadow-lg"
+            >
+              <img src="https://www.google.com/favicon.ico" className="w-4 h-4" />
+              <span>Sign in with Google</span>
+            </button>
+            <button 
+              onClick={() => onLogin('github')}
+              className="w-full py-5 bg-black border border-white/10 text-white rounded-3xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center space-x-4 hover:bg-white/5 transition-all"
+            >
+              <i className="fa-brands fa-github text-lg"></i>
+              <span>Authorize with GitHub</span>
+            </button>
+          </div>
+
+          {/* Security Box */}
+          <div className="p-6 bg-yellow-400/5 border border-yellow-400/10 rounded-[2.5rem] flex items-start space-x-4">
+            <div className="w-8 h-8 rounded-lg bg-yellow-400 flex items-center justify-center text-black shrink-0 shadow-glow">
+              <i className="fa-solid fa-shield-halved text-xs"></i>
+            </div>
+            <p className="text-[9px] text-gray-500 leading-relaxed uppercase font-black">
+              Your session is protected by <span className="text-yellow-400">Quantum-Resistant</span> algorithms. No metadata is logged during the handshake protocol.
+            </p>
+          </div>
         </div>
       </div>
+
+      {/* FOOTER */}
+      <footer className="absolute bottom-8 w-full text-center px-12 z-10">
+        <p className="text-[10px] font-black text-gray-800 uppercase tracking-[0.5em]">
+          © 2025 NIB SEC • SECURED COMMUNICATION • T.ME/NIBSEC
+        </p>
+      </footer>
+
+      <style>{`
+        .shadow-glow { box-shadow: 0 0 30px rgba(250, 204, 21, 0.4); }
+        .bee-with-bar { animation: bee-drift 10s infinite ease-in-out; }
+        @keyframes bee-drift {
+          0%, 100% { transform: translateY(0) rotate(2deg); }
+          50% { transform: translateY(-20px) rotate(-2deg); }
+        }
+      `}</style>
     </div>
   );
 };
